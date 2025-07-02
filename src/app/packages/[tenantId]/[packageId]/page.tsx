@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { usePackagesContext } from '@/contexts/PackagesContext';
 import { Package } from '@/types/package';
 
 interface PackageDetailsPageProps {
-  params: {
+  params: Promise<{
     tenantId: string;
     packageId: string;
-  };
+  }>;
 }
 
 interface PackageWithTenant extends Package {
@@ -18,15 +18,16 @@ interface PackageWithTenant extends Package {
 }
 
 export default function PackageDetailsPage({ params }: PackageDetailsPageProps) {
+  const resolvedParams = use(params);
   const { getPackageById } = usePackagesContext();
   const [packageData, setPackageData] = useState<PackageWithTenant | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const pkg = getPackageById(params.tenantId, params.packageId);
+    const pkg = getPackageById(resolvedParams.tenantId, resolvedParams.packageId);
     setPackageData(pkg);
     setLoading(false);
-  }, [params.tenantId, params.packageId, getPackageById]);
+  }, [resolvedParams.tenantId, resolvedParams.packageId, getPackageById]);
 
   if (loading) {
     return (
