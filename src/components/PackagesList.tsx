@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { usePackages } from '@/hooks/usePackages';
 import PackageCard from './PackageCard';
