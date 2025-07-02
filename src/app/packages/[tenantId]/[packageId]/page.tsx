@@ -1,5 +1,10 @@
+"use client";
+
+import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { usePackagesContext } from '@/contexts/PackagesContext';
+import { Package } from '@/types/package';
 
 interface PackageDetailsPageProps {
   params: {
@@ -8,36 +13,32 @@ interface PackageDetailsPageProps {
   };
 }
 
-// This would normally fetch from your API
-async function getPackageDetails(tenantId: string, packageId: string) {
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/packages`, {
-      cache: 'no-store'
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch packages');
-    }
-    
-    const data = await response.json();
-    
-    // Find the specific package
-    const tenant = data.data.find((t: any) => t.tenant_id === tenantId);
-    if (!tenant) return null;
-    
-    const packageData = tenant.packages.find((p: any) => p.id.toString() === packageId);
-    if (!packageData) return null;
-    
-    return { ...packageData, tenant_id: tenantId };
-  } catch (error) {
-    console.error('Error fetching package details:', error);
-    return null;
-  }
+interface PackageWithTenant extends Package {
+  tenant_id: string;
 }
 
-export default async function PackageDetailsPage({ params }: PackageDetailsPageProps) {
-  const packageData = await getPackageDetails(params.tenantId, params.packageId);
-  
+export default function PackageDetailsPage({ params }: PackageDetailsPageProps) {
+  const { getPackageById } = usePackagesContext();
+  const [packageData, setPackageData] = useState<PackageWithTenant | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const pkg = getPackageById(params.tenantId, params.packageId);
+    setPackageData(pkg);
+    setLoading(false);
+  }, [params.tenantId, params.packageId, getPackageById]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">Loading package details...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!packageData) {
     notFound();
   }
@@ -256,19 +257,4 @@ export default async function PackageDetailsPage({ params }: PackageDetailsPageP
       </div>
     </div>
   );
-}
-
-export async function generateMetadata({ params }: PackageDetailsPageProps) {
-  const packageData = await getPackageDetails(params.tenantId, params.packageId);
-  
-  if (!packageData) {
-    return {
-      title: 'Package Not Found',
-    };
-  }
-
-  return {
-    title: `${packageData.name} | Tour Network`,
-    description: packageData.short_description,
-  };
 }

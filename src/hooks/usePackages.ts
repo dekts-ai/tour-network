@@ -3,10 +3,15 @@
 import { useState, useEffect } from 'react';
 import api from '@/services/api';
 import { PackagesResponse, Package, FilterOptions } from '@/types/package';
+import { usePackagesContext } from '@/contexts/PackagesContext';
+
+interface PackageWithTenant extends Package {
+  tenant_id: string;
+}
 
 export const usePackages = () => {
-  const [packages, setPackages] = useState<Package[]>([]);
-  const [filteredPackages, setFilteredPackages] = useState<Package[]>([]);
+  const { packages, setPackages } = usePackagesContext();
+  const [filteredPackages, setFilteredPackages] = useState<PackageWithTenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tenants, setTenants] = useState<string[]>([]);
@@ -18,7 +23,7 @@ export const usePackages = () => {
       
       if (response.data.code === 200) {
         // Flatten all packages from all tenants
-        const allPackages = response.data.data.flatMap(tenant => 
+        const allPackages: PackageWithTenant[] = response.data.data.flatMap(tenant => 
           tenant.packages
             .filter(pkg => pkg.frontend_enabled === 1 && pkg.status === 'Active')
             .map(pkg => ({ ...pkg, tenant_id: tenant.tenant_id }))
@@ -27,7 +32,7 @@ export const usePackages = () => {
         // Extract unique tenants
         const uniqueTenants = [...new Set(response.data.data.map(tenant => tenant.tenant_id))];
         
-        setPackages(allPackages);
+        setPackages(allPackages); // Store in context
         setFilteredPackages(allPackages);
         setTenants(uniqueTenants);
       } else {
@@ -46,7 +51,7 @@ export const usePackages = () => {
 
     // Filter by tenant
     if (filters.tenant && filters.tenant !== 'all') {
-      filtered = filtered.filter(pkg => (pkg as any).tenant_id === filters.tenant);
+      filtered = filtered.filter(pkg => pkg.tenant_id === filters.tenant);
     }
 
     // Filter by search term
@@ -85,6 +90,11 @@ export const usePackages = () => {
   useEffect(() => {
     fetchPackages();
   }, []);
+
+  // Update filtered packages when packages change
+  useEffect(() => {
+    setFilteredPackages(packages);
+  }, [packages]);
 
   return {
     packages: filteredPackages,

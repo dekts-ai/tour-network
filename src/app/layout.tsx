@@ -1,4 +1,5 @@
 import '@/styles/globals.css';
+import { PackagesProvider } from '@/contexts/PackagesContext';
 
 export const metadata = {
   title: {
@@ -33,7 +34,11 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <PackagesProvider>
+          {children}
+        </PackagesProvider>
+      </body>
     </html>
   );
 }
