@@ -1,4 +1,7 @@
+"use client";
+
 import React from 'react';
+import Link from 'next/link';
 import { Package } from '@/types/package';
 
 interface PackageCardProps {
@@ -122,9 +125,12 @@ const PackageCard: React.FC<PackageCardProps> = ({ package: pkg }) => {
         </div>
 
         {/* Action Button */}
-        <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+        <Link 
+          href={`/packages/${pkg.tenant_id}/${pkg.id}`}
+          className="block w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-center"
+        >
           View Details & Book
-        </button>
+        </Link>
       </div>
     </div>
   );
