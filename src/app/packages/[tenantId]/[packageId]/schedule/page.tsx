@@ -146,8 +146,8 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     // Calculate subtotal per person
     const subtotalPerPerson = rate + permitFee + additionalCharge + partnerFeeAmount;
     
-    // Calculate commission per person
-    const commissionPerPerson = (rate * serviceCommissionPercentage) / 100;
+    // Calculate commission per person based on subtotal (CORRECTED)
+    const commissionPerPerson = (subtotalPerPerson * serviceCommissionPercentage) / 100;
     
     // Calculate totals
     const subtotal = subtotalPerPerson * quantity;
