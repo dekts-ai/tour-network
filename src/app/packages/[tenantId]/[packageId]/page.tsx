@@ -5,7 +5,6 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Package, PackageDetailsResponse } from '@/types/package';
 import api from '@/services/api';
-import BookingModal from '@/components/BookingModal';
 
 interface PackageDetailsPageProps {
   params: Promise<{
@@ -23,7 +22,6 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
   const [packageData, setPackageData] = useState<PackageWithTenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchPackageDetails = async () => {
@@ -73,6 +71,16 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
     return `${hours}h ${minutes}m`;
   };
 
+  const formatGroupSize = (min: number, max: number | null) => {
+    if (max === null) {
+      return `${min}+ people`;
+    }
+    if (min === max) {
+      return `${min} ${min === 1 ? 'person' : 'people'}`;
+    }
+    return `${min}-${max} people`;
+  };
+
   const parseThingsToBring = (thingsString: string) => {
     try {
       const parsed = JSON.parse(thingsString);
@@ -87,11 +95,21 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
 
   const thingsToBring = parseThingsToBring(packageData.things_to_bring);
 
-  // Generate a dummy image URL based on package ID for consistency
+  // Static dummy images - no parameters
   const getDummyImage = (id: number) => {
-    const imageIds = [1011, 1018, 1025, 1035, 1040, 1044, 1051, 1061, 1074, 1080];
-    const imageId = imageIds[id % imageIds.length];
-    return `https://images.pexels.com/photos/${imageId}/pexels-photo-${imageId}.jpeg?auto=compress&cs=tinysrgb&w=1200&h=600&fit=crop`;
+    const images = [
+      'https://images.pexels.com/photos/1011/pexels-photo-1011.jpeg',
+      'https://images.pexels.com/photos/1018/pexels-photo-1018.jpeg',
+      'https://images.pexels.com/photos/1025/pexels-photo-1025.jpeg',
+      'https://images.pexels.com/photos/1035/pexels-photo-1035.jpeg',
+      'https://images.pexels.com/photos/1040/pexels-photo-1040.jpeg',
+      'https://images.pexels.com/photos/1044/pexels-photo-1044.jpeg',
+      'https://images.pexels.com/photos/1051/pexels-photo-1051.jpeg',
+      'https://images.pexels.com/photos/1061/pexels-photo-1061.jpeg',
+      'https://images.pexels.com/photos/1074/pexels-photo-1074.jpeg',
+      'https://images.pexels.com/photos/1080/pexels-photo-1080.jpeg'
+    ];
+    return images[id % images.length];
   };
 
   return (
@@ -108,15 +126,26 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
         {/* Header Content */}
         <div className="absolute inset-0 flex items-end">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-            <Link 
-              href="/packages"
-              className="inline-flex items-center text-white hover:text-blue-200 mb-4 transition-colors"
-            >
-              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-              </svg>
-              Back to Packages
-            </Link>
+            <div className="flex items-center gap-4 mb-4">
+              <Link 
+                href="/"
+                className="inline-flex items-center text-white hover:text-blue-200 transition-colors"
+              >
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                </svg>
+                Home
+              </Link>
+              <span className="text-white">/</span>
+              <Link 
+                href="/packages"
+                className="inline-flex items-center text-white hover:text-blue-200 transition-colors"
+              >
+                Packages
+              </Link>
+              <span className="text-white">/</span>
+              <span className="text-blue-200">{packageData.name}</span>
+            </div>
             
             <div className="flex items-start justify-between">
               <div>
@@ -138,7 +167,7 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
                     </svg>
-                    {packageData.min_pax_allowed} - {packageData.max_pax_allowed || '∞'} people
+                    {formatGroupSize(packageData.min_pax_allowed, packageData.max_pax_allowed)}
                   </span>
                 </div>
               </div>
@@ -253,7 +282,7 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
                 <div className="flex justify-between items-center py-3 border-b border-gray-200">
                   <span className="text-gray-600">Group Size</span>
                   <span className="font-semibold">
-                    {packageData.min_pax_allowed} - {packageData.max_pax_allowed || '∞'} people
+                    {formatGroupSize(packageData.min_pax_allowed, packageData.max_pax_allowed)}
                   </span>
                 </div>
                 
@@ -264,12 +293,12 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
               </div>
 
               {/* Booking Button */}
-              <button 
-                onClick={() => setIsBookingModalOpen(true)}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 mb-4"
+              <Link 
+                href={`/packages/${packageData.tenant_id}/${packageData.id}/schedule`}
+                className="block w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 mb-4 text-center"
               >
-                Book Now
-              </button>
+                Schedule Tour
+              </Link>
               
               <p className="text-sm text-gray-500 text-center">
                 Secure booking • Instant confirmation
@@ -298,15 +327,6 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
           </div>
         </div>
       </div>
-
-      {/* Booking Modal */}
-      <BookingModal
-        isOpen={isBookingModalOpen}
-        onClose={() => setIsBookingModalOpen(false)}
-        tenantId={packageData.tenant_id}
-        packageId={packageData.id.toString()}
-        packageName={packageData.name}
-      />
     </div>
   );
 }

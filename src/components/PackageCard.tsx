@@ -28,13 +28,33 @@ const PackageCard: React.FC<PackageCardProps> = ({ package: pkg }) => {
     return [];
   };
 
+  const formatGroupSize = (min: number, max: number | null) => {
+    if (max === null) {
+      return `${min}+ people`;
+    }
+    if (min === max) {
+      return `${min} ${min === 1 ? 'person' : 'people'}`;
+    }
+    return `${min}-${max} people`;
+  };
+
   const thingsToBring = parseThingsToBring(pkg.things_to_bring);
 
-  // Generate a dummy image URL based on package ID for consistency
+  // Static dummy images - no parameters
   const getDummyImage = (id: number) => {
-    const imageIds = [1011, 1018, 1025, 1035, 1040, 1044, 1051, 1061, 1074, 1080];
-    const imageId = imageIds[id % imageIds.length];
-    return `https://images.pexels.com/photos/${imageId}/pexels-photo-${imageId}.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop`;
+    const images = [
+      'https://images.pexels.com/photos/1011/pexels-photo-1011.jpeg',
+      'https://images.pexels.com/photos/1018/pexels-photo-1018.jpeg',
+      'https://images.pexels.com/photos/1025/pexels-photo-1025.jpeg',
+      'https://images.pexels.com/photos/1035/pexels-photo-1035.jpeg',
+      'https://images.pexels.com/photos/1040/pexels-photo-1040.jpeg',
+      'https://images.pexels.com/photos/1044/pexels-photo-1044.jpeg',
+      'https://images.pexels.com/photos/1051/pexels-photo-1051.jpeg',
+      'https://images.pexels.com/photos/1061/pexels-photo-1061.jpeg',
+      'https://images.pexels.com/photos/1074/pexels-photo-1074.jpeg',
+      'https://images.pexels.com/photos/1080/pexels-photo-1080.jpeg'
+    ];
+    return images[id % images.length];
   };
 
   return (
@@ -86,21 +106,13 @@ const PackageCard: React.FC<PackageCardProps> = ({ package: pkg }) => {
         </p>
 
         {/* Details Grid */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 gap-4 mb-4">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
             </svg>
-            Min: {pkg.min_pax_allowed} {pkg.min_pax_allowed === 1 ? 'person' : 'people'}
+            Group Size: {formatGroupSize(pkg.min_pax_allowed, pkg.max_pax_allowed)}
           </div>
-          {pkg.max_pax_allowed && (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
-              </svg>
-              Max: {pkg.max_pax_allowed} people
-            </div>
-          )}
         </div>
 
         {/* Things to Bring */}
