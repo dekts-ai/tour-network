@@ -29,6 +29,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [rateGroupsLoading, setRateGroupsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [hasCustomRatesInSlots, setHasCustomRatesInSlots] = useState(false);
 
   // Initialize with current date
   useEffect(() => {
@@ -70,12 +71,32 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     }
   }, [selectedDate, packageData]);
 
-  // Fetch rate groups when date or slot changes
+  // Fetch rate groups based on custom rates logic
   useEffect(() => {
-    if (selectedDate && packageData) {
-      fetchRateGroups();
+    if (selectedDate && packageData && timeSlots.length > 0) {
+      // Check if any slot has custom_rate > 0
+      const hasCustomRates = timeSlots.some(slot => slot.custom_rate > 0);
+      setHasCustomRatesInSlots(hasCustomRates);
+      
+      // If no custom rates in any slot, fetch rate groups immediately
+      if (!hasCustomRates) {
+        fetchRateGroups(false); // false = date-based, not slot-based
+      } else {
+        // Clear rate groups when custom rates are present but no slot selected
+        if (!selectedSlot) {
+          setRateGroups([]);
+          setRateGroupSelections([]);
+        }
+      }
     }
-  }, [selectedDate, selectedSlot, packageData]);
+  }, [timeSlots, selectedDate, packageData]);
+
+  // Fetch rate groups when slot is selected (only if custom rates exist)
+  useEffect(() => {
+    if (selectedSlot && hasCustomRatesInSlots && packageData) {
+      fetchRateGroups(true, selectedSlot); // true = slot-based
+    }
+  }, [selectedSlot, hasCustomRatesInSlots, packageData]);
 
   const fetchTimeSlots = async () => {
     try {
@@ -86,6 +107,8 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       
       if (response.data.code === 200) {
         setTimeSlots(response.data.data.slots);
+        // Reset selected slot when date changes
+        setSelectedSlot(null);
       }
     } catch (error) {
       console.error('Error fetching time slots:', error);
@@ -95,19 +118,17 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     }
   };
 
-  const fetchRateGroups = async () => {
+  const fetchRateGroups = async (isSlotBased: boolean = false, slot?: TimeSlot) => {
     try {
       setRateGroupsLoading(true);
-      
-      // Determine if we should use slot-based or date-based rate groups
-      const hasCustomRates = selectedSlot && selectedSlot.custom_rate > 0;
       
       const requestData: any = {
         date: selectedDate
       };
       
-      if (hasCustomRates && selectedSlot) {
-        requestData.slot_id = selectedSlot.id;
+      // Add slot_id only if it's slot-based and slot has custom_rate > 0
+      if (isSlotBased && slot && slot.custom_rate > 0) {
+        requestData.slot_id = slot.id;
       }
       
       const response = await api.post<RateGroupsResponse>(`/rate-groups/${resolvedParams.tenantId}/${resolvedParams.packageId}`, requestData);
@@ -146,7 +167,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     // Calculate subtotal per person
     const subtotalPerPerson = rate + permitFee + additionalCharge + partnerFeeAmount;
     
-    // Calculate commission per person based on subtotal (CORRECTED)
+    // Calculate commission per person based on subtotal
     const commissionPerPerson = (subtotalPerPerson * serviceCommissionPercentage) / 100;
     
     // Calculate totals
@@ -476,7 +497,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         </div>
 
         {/* Rate Groups Section */}
-        {selectedSlot && rateGroups.length > 0 && (
+        {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && timeSlots.length > 0)) && rateGroups.length > 0 && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Select Guests</h3>
             
@@ -553,7 +574,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         )}
 
         {/* Booking Summary */}
-        {selectedSlot && getTotalGuests() > 0 && (
+        {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && timeSlots.length > 0)) && getTotalGuests() > 0 && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Booking Summary</h3>
             
@@ -569,10 +590,12 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                     <span className="text-gray-600">Date:</span>
                     <span className="font-medium">{formatDate(selectedDate)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Time:</span>
-                    <span className="font-medium">{selectedSlot.time}</span>
-                  </div>
+                  {selectedSlot && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Time:</span>
+                      <span className="font-medium">{selectedSlot.time}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-gray-600">Duration:</span>
                     <span className="font-medium">{formatDuration(packageData.hours, packageData.minutes)}</span>
@@ -608,7 +631,8 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                   <div className="pt-3">
                     <button
                       onClick={handleBooking}
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      disabled={!selectedSlot && hasCustomRatesInSlots}
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                     >
                       Continue to Booking
                     </button>
