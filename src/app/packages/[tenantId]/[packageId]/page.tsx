@@ -3,8 +3,9 @@
 import { use, useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { usePackagesContext } from '@/contexts/PackagesContext';
-import { Package } from '@/types/package';
+import { Package, PackageDetailsResponse } from '@/types/package';
+import api from '@/services/api';
+import BookingModal from '@/components/BookingModal';
 
 interface PackageDetailsPageProps {
   params: Promise<{
@@ -19,15 +20,36 @@ interface PackageWithTenant extends Package {
 
 export default function PackageDetailsPage({ params }: PackageDetailsPageProps) {
   const resolvedParams = use(params);
-  const { getPackageById } = usePackagesContext();
   const [packageData, setPackageData] = useState<PackageWithTenant | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
 
   useEffect(() => {
-    const pkg = getPackageById(resolvedParams.tenantId, resolvedParams.packageId);
-    setPackageData(pkg);
-    setLoading(false);
-  }, [resolvedParams.tenantId, resolvedParams.packageId, getPackageById]);
+    const fetchPackageDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get<PackageDetailsResponse>(`/package/${resolvedParams.tenantId}/${resolvedParams.packageId}`);
+        
+        if (response.data.code === 200) {
+          const packageWithTenant: PackageWithTenant = {
+            ...response.data.data.package,
+            tenant_id: response.data.data.tenant_id
+          };
+          setPackageData(packageWithTenant);
+        } else {
+          setError('Package not found');
+        }
+      } catch (err) {
+        setError('Error fetching package details');
+        console.error('Error fetching package details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPackageDetails();
+  }, [resolvedParams.tenantId, resolvedParams.packageId]);
 
   if (loading) {
     return (
@@ -40,7 +62,7 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
     );
   }
 
-  if (!packageData) {
+  if (error || !packageData) {
     notFound();
   }
 
@@ -65,51 +87,68 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
 
   const thingsToBring = parseThingsToBring(packageData.things_to_bring);
 
+  // Generate a dummy image URL based on package ID for consistency
+  const getDummyImage = (id: number) => {
+    const imageIds = [1011, 1018, 1025, 1035, 1040, 1044, 1051, 1061, 1074, 1080];
+    const imageId = imageIds[id % imageIds.length];
+    return `https://images.pexels.com/photos/${imageId}/pexels-photo-${imageId}.jpeg?auto=compress&cs=tinysrgb&w=1200&h=600&fit=crop`;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Link 
-            href="/packages"
-            className="inline-flex items-center text-blue-100 hover:text-white mb-4 transition-colors"
-          >
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-            </svg>
-            Back to Packages
-          </Link>
-          
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-4xl font-bold mb-4">{packageData.name}</h1>
-              <div className="flex items-center gap-6 text-blue-100">
-                <span className="flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                  </svg>
-                  {formatDuration(packageData.hours, packageData.minutes)}
-                </span>
-                <span className="flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                  </svg>
-                  {packageData.tenant_id.toUpperCase()}
-                </span>
-                <span className="flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
-                  </svg>
-                  {packageData.min_pax_allowed} - {packageData.max_pax_allowed || '∞'} people
-                </span>
-              </div>
-            </div>
+      {/* Hero Image */}
+      <div className="relative h-96 overflow-hidden">
+        <img
+          src={getDummyImage(packageData.id)}
+          alt={packageData.name}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+        
+        {/* Header Content */}
+        <div className="absolute inset-0 flex items-end">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+            <Link 
+              href="/packages"
+              className="inline-flex items-center text-white hover:text-blue-200 mb-4 transition-colors"
+            >
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              </svg>
+              Back to Packages
+            </Link>
             
-            {packageData.is_combo_package === 1 && (
-              <span className="bg-yellow-400 text-yellow-900 px-4 py-2 rounded-full text-sm font-semibold">
-                Combo Package
-              </span>
-            )}
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-4">{packageData.name}</h1>
+                <div className="flex items-center gap-6 text-blue-100">
+                  <span className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                    </svg>
+                    {formatDuration(packageData.hours, packageData.minutes)}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                    </svg>
+                    {packageData.tenant_id.toUpperCase()}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
+                    </svg>
+                    {packageData.min_pax_allowed} - {packageData.max_pax_allowed || '∞'} people
+                  </span>
+                </div>
+              </div>
+              
+              {packageData.is_combo_package === 1 && (
+                <span className="bg-yellow-400 text-yellow-900 px-4 py-2 rounded-full text-sm font-semibold">
+                  Combo Package
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -225,7 +264,10 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
               </div>
 
               {/* Booking Button */}
-              <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 mb-4">
+              <button 
+                onClick={() => setIsBookingModalOpen(true)}
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 mb-4"
+              >
                 Book Now
               </button>
               
@@ -256,6 +298,15 @@ export default function PackageDetailsPage({ params }: PackageDetailsPageProps) 
           </div>
         </div>
       </div>
+
+      {/* Booking Modal */}
+      <BookingModal
+        isOpen={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        tenantId={packageData.tenant_id}
+        packageId={packageData.id.toString()}
+        packageName={packageData.name}
+      />
     </div>
   );
 }

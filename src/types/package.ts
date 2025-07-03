@@ -82,6 +82,34 @@ export interface PackagesResponse {
   data: TenantPackages[];
 }
 
+export interface PackageDetailsResponse {
+  message: string;
+  code: number;
+  data: {
+    tenant_id: string;
+    package: Package;
+  };
+}
+
+export interface TimeSlot {
+  id: number;
+  date: string;
+  time: string;
+  slot_time: string;
+  seats: number;
+  bookable_status: 'Open' | 'Closed';
+  custom_rate: number;
+}
+
+export interface TimeSlotsResponse {
+  message: string;
+  code: number;
+  data: {
+    tenant_id: string;
+    slots: TimeSlot[];
+  };
+}
+
 export interface FilterOptions {
   tenant: string;
   duration: string;

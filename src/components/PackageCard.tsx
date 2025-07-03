@@ -30,8 +30,30 @@ const PackageCard: React.FC<PackageCardProps> = ({ package: pkg }) => {
 
   const thingsToBring = parseThingsToBring(pkg.things_to_bring);
 
+  // Generate a dummy image URL based on package ID for consistency
+  const getDummyImage = (id: number) => {
+    const imageIds = [1011, 1018, 1025, 1035, 1040, 1044, 1051, 1061, 1074, 1080];
+    const imageId = imageIds[id % imageIds.length];
+    return `https://images.pexels.com/photos/${imageId}/pexels-photo-${imageId}.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&fit=crop`;
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
+      {/* Image */}
+      <div className="relative h-48 overflow-hidden">
+        <img
+          src={getDummyImage(pkg.id)}
+          alt={pkg.name}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+        {pkg.is_combo_package === 1 && (
+          <span className="absolute top-4 right-4 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-xs font-semibold">
+            Combo
+          </span>
+        )}
+      </div>
+
       {/* Header */}
       <div className="relative p-6 bg-gradient-to-r from-blue-600 to-purple-600">
         <div className="flex justify-between items-start">
@@ -54,11 +76,6 @@ const PackageCard: React.FC<PackageCardProps> = ({ package: pkg }) => {
               </span>
             </div>
           </div>
-          {pkg.is_combo_package === 1 && (
-            <span className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-xs font-semibold">
-              Combo
-            </span>
-          )}
         </div>
       </div>
 
