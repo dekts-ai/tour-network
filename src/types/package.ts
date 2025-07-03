@@ -135,7 +135,11 @@ export interface RateGroup {
 export interface RateGroupsResponse {
   message: string;
   code: number;
-  data: RateGroup[];
+  data: {
+    tenant_id: string;
+    service_commission_percentage: number;
+    rate_groups: RateGroup[];
+  };
 }
 
 export interface RateGroupSelection {

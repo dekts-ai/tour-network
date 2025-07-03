@@ -30,6 +30,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [hasCustomRatesInSlots, setHasCustomRatesInSlots] = useState(false);
+  const [rateGroupCommission, setRateGroupCommission] = useState<number | null>(null);
 
   // Initialize with current date
   useEffect(() => {
@@ -134,9 +135,10 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       const response = await api.post<RateGroupsResponse>(`/rate-groups/${resolvedParams.tenantId}/${resolvedParams.packageId}`, requestData);
       
       if (response.data.code === 200) {
-        setRateGroups(response.data.data);
+        setRateGroups(response.data.data.rate_groups);
+        setRateGroupCommission(response.data.data.service_commission_percentage);
         // Initialize rate group selections with 0 quantity
-        const initialSelections = response.data.data.map(rateGroup => ({
+        const initialSelections = response.data.data.rate_groups.map(rateGroup => ({
           rateGroup,
           quantity: 0,
           subtotal: 0,
@@ -168,7 +170,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     const subtotalPerPerson = rate + permitFee + additionalCharge + partnerFeeAmount;
     
     // Calculate commission per person based on subtotal
-    const commissionPerPerson = (subtotalPerPerson * serviceCommissionPercentage) / 100;
+    const commissionPerPerson = roundout((subtotalPerPerson * serviceCommissionPercentage) / 100);
     
     // Calculate totals
     const subtotal = subtotalPerPerson * quantity;
@@ -194,7 +196,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     
     const updatedSelections = [...rateGroupSelections];
     const rateGroup = updatedSelections[index].rateGroup;
-    const serviceCommissionPercentage = parseFloat(packageData.service_commission_percentage);
+    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
     
     const pricing = calculatePricing(rateGroup, newQuantity, serviceCommissionPercentage);
     
@@ -213,6 +215,13 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
   const getTotalAmount = () => {
     return rateGroupSelections.reduce((total, selection) => total + selection.total, 0);
+  };
+
+  const roundout = (amount: number, places: number = 2) => {
+    if (places < 0) places = 0;
+    const x = Math.pow(10, places);
+    const formul = (amount * x).toFixed(10);
+    return (amount >= 0 ? Math.ceil(parseFloat(formul)) : Math.floor(parseFloat(formul))) / x;
   };
 
   const getAvailableSeats = () => {
