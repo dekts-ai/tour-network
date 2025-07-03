@@ -181,6 +181,17 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const updateRateGroupQuantity = (index: number, newQuantity: number) => {
     if (newQuantity < 0 || !packageData) return;
     
+    // Get current total guests excluding this rate group
+    const currentTotalExcludingThis = rateGroupSelections.reduce((total, selection, i) => {
+      return i === index ? total : total + selection.quantity;
+    }, 0);
+    
+    // Check if adding this quantity would exceed available seats
+    const availableSeats = getAvailableSeats();
+    if (currentTotalExcludingThis + newQuantity > availableSeats) {
+      return; // Don't allow the update
+    }
+    
     const updatedSelections = [...rateGroupSelections];
     const rateGroup = updatedSelections[index].rateGroup;
     const serviceCommissionPercentage = parseFloat(packageData.service_commission_percentage);
@@ -202,6 +213,26 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
   const getTotalAmount = () => {
     return rateGroupSelections.reduce((total, selection) => total + selection.total, 0);
+  };
+
+  const getAvailableSeats = () => {
+    if (hasCustomRatesInSlots && selectedSlot) {
+      return selectedSlot.seats;
+    } else if (!hasCustomRatesInSlots && timeSlots.length > 0) {
+      // For date-based booking, use the maximum available seats from all open slots
+      const openSlots = timeSlots.filter(slot => slot.bookable_status === 'Open');
+      return openSlots.length > 0 ? Math.max(...openSlots.map(slot => slot.seats)) : 0;
+    }
+    return 0;
+  };
+
+  const getRemainingSeats = () => {
+    return getAvailableSeats() - getTotalGuests();
+  };
+
+  const canIncreaseQuantity = (currentQuantity: number) => {
+    const totalOtherGuests = getTotalGuests() - currentQuantity;
+    return totalOtherGuests + currentQuantity + 1 <= getAvailableSeats();
   };
 
   const generateCalendarDays = () => {
@@ -270,6 +301,17 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const handleSlotSelect = (slot: TimeSlot) => {
     if (slot.bookable_status === 'Open') {
       setSelectedSlot(slot);
+      // Reset rate group selections when changing slots to avoid exceeding new slot capacity
+      if (rateGroupSelections.length > 0) {
+        const resetSelections = rateGroupSelections.map(selection => ({
+          ...selection,
+          quantity: 0,
+          subtotal: 0,
+          commission: 0,
+          total: 0
+        }));
+        setRateGroupSelections(resetSelections);
+      }
     }
   };
 
@@ -499,7 +541,18 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         {/* Rate Groups Section */}
         {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && timeSlots.length > 0)) && rateGroups.length > 0 && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">Select Guests</h3>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-900">Select Guests</h3>
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Available Seats</p>
+                <p className="text-2xl font-bold text-green-600">{getAvailableSeats()}</p>
+                {getTotalGuests() > 0 && (
+                  <p className="text-sm text-orange-600">
+                    {getRemainingSeats()} remaining
+                  </p>
+                )}
+              </div>
+            </div>
             
             {rateGroupsLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -542,7 +595,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                           
                           <button
                             onClick={() => updateRateGroupQuantity(index, selection.quantity + 1)}
-                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-r-lg transition-colors"
+                            disabled={!canIncreaseQuantity(selection.quantity)}
+                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-r-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            title={!canIncreaseQuantity(selection.quantity) ? 'No more seats available' : 'Add guest'}
                           >
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -568,6 +623,20 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                     )}
                   </div>
                 ))}
+                
+                {/* Seat Limit Warning */}
+                {getTotalGuests() >= getAvailableSeats() && getAvailableSeats() > 0 && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-orange-800 font-medium">
+                        Maximum capacity reached! You've selected all {getAvailableSeats()} available seats.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
