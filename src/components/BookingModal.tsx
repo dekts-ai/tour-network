@@ -42,7 +42,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const fetchTimeSlots = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/time-slots/${tenantId}/${packageId}?date=${selectedDate}`);
+      const response = await api.post(`/time-slots/${tenantId}/${packageId}`, {
+        date: selectedDate
+      });
       
       if (response.data.code === 200) {
         setTimeSlots(response.data.data.slots);
