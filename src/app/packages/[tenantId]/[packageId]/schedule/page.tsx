@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { Package, PackageDetailsResponse, TimeSlot, TimeSlotsResponse } from '@/types/package';
+import { Package, PackageDetailsResponse, TimeSlot, TimeSlotsResponse, RateGroup, RateGroupsResponse, RateGroupSelection } from '@/types/package';
 import api from '@/services/api';
 
 interface SchedulePageProps {
@@ -22,8 +22,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [packageData, setPackageData] = useState<PackageWithTenant | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [rateGroups, setRateGroups] = useState<RateGroup[]>([]);
+  const [rateGroupSelections, setRateGroupSelections] = useState<RateGroupSelection[]>([]);
   const [loading, setLoading] = useState(true);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [rateGroupsLoading, setRateGroupsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
 
@@ -67,6 +70,13 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     }
   }, [selectedDate, packageData]);
 
+  // Fetch rate groups when date or slot changes
+  useEffect(() => {
+    if (selectedDate && packageData) {
+      fetchRateGroups();
+    }
+  }, [selectedDate, selectedSlot, packageData]);
+
   const fetchTimeSlots = async () => {
     try {
       setSlotsLoading(true);
@@ -83,6 +93,94 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     } finally {
       setSlotsLoading(false);
     }
+  };
+
+  const fetchRateGroups = async () => {
+    try {
+      setRateGroupsLoading(true);
+      
+      // Determine if we should use slot-based or date-based rate groups
+      const hasCustomRates = selectedSlot && selectedSlot.custom_rate > 0;
+      
+      const requestData: any = {
+        date: selectedDate
+      };
+      
+      if (hasCustomRates && selectedSlot) {
+        requestData.slot_id = selectedSlot.id;
+      }
+      
+      const response = await api.post<RateGroupsResponse>(`/rate-groups/${resolvedParams.tenantId}/${resolvedParams.packageId}`, requestData);
+      
+      if (response.data.code === 200) {
+        setRateGroups(response.data.data);
+        // Initialize rate group selections with 0 quantity
+        const initialSelections = response.data.data.map(rateGroup => ({
+          rateGroup,
+          quantity: 0,
+          subtotal: 0,
+          commission: 0,
+          total: 0
+        }));
+        setRateGroupSelections(initialSelections);
+      }
+    } catch (error) {
+      console.error('Error fetching rate groups:', error);
+      setRateGroups([]);
+      setRateGroupSelections([]);
+    } finally {
+      setRateGroupsLoading(false);
+    }
+  };
+
+  const calculatePricing = (rateGroup: RateGroup, quantity: number, serviceCommissionPercentage: number) => {
+    if (quantity === 0) {
+      return { subtotal: 0, commission: 0, total: 0 };
+    }
+
+    const rate = parseFloat(rateGroup.rate);
+    const permitFee = parseFloat(rateGroup.permit_fee);
+    const additionalCharge = parseFloat(rateGroup.additional_charge);
+    const partnerFeeAmount = parseFloat(rateGroup.partner_fee_amount);
+    
+    // Calculate subtotal per person
+    const subtotalPerPerson = rate + permitFee + additionalCharge + partnerFeeAmount;
+    
+    // Calculate commission per person
+    const commissionPerPerson = (rate * serviceCommissionPercentage) / 100;
+    
+    // Calculate totals
+    const subtotal = subtotalPerPerson * quantity;
+    const commission = commissionPerPerson * quantity;
+    const total = subtotal + commission;
+    
+    return { subtotal, commission, total };
+  };
+
+  const updateRateGroupQuantity = (index: number, newQuantity: number) => {
+    if (newQuantity < 0 || !packageData) return;
+    
+    const updatedSelections = [...rateGroupSelections];
+    const rateGroup = updatedSelections[index].rateGroup;
+    const serviceCommissionPercentage = parseFloat(packageData.service_commission_percentage);
+    
+    const pricing = calculatePricing(rateGroup, newQuantity, serviceCommissionPercentage);
+    
+    updatedSelections[index] = {
+      rateGroup,
+      quantity: newQuantity,
+      ...pricing
+    };
+    
+    setRateGroupSelections(updatedSelections);
+  };
+
+  const getTotalGuests = () => {
+    return rateGroupSelections.reduce((total, selection) => total + selection.quantity, 0);
+  };
+
+  const getTotalAmount = () => {
+    return rateGroupSelections.reduce((total, selection) => total + selection.total, 0);
   };
 
   const generateCalendarDays = () => {
@@ -155,10 +253,16 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const handleBooking = () => {
-    if (selectedSlot) {
-      // Here you would typically proceed to the next step of booking
-      console.log('Booking slot:', selectedSlot);
-      alert(`Booking confirmed for ${selectedSlot.time} on ${formatDate(selectedDate)}`);
+    const totalGuests = getTotalGuests();
+    if (selectedSlot && totalGuests > 0) {
+      console.log('Booking details:', {
+        slot: selectedSlot,
+        date: selectedDate,
+        rateGroupSelections: rateGroupSelections.filter(s => s.quantity > 0),
+        totalGuests,
+        totalAmount: getTotalAmount()
+      });
+      alert(`Booking confirmed for ${selectedSlot.time} on ${formatDate(selectedDate)} for ${totalGuests} guests`);
     }
   };
 
@@ -350,7 +454,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                       <div className="text-right">
                         {slot.custom_rate > 0 && (
                           <p className="text-lg font-bold text-green-600">
-                            ${slot.custom_rate}
+                            Custom Rate
                           </p>
                         )}
                         <span className={`
@@ -371,8 +475,85 @@ export default function SchedulePage({ params }: SchedulePageProps) {
           </div>
         </div>
 
+        {/* Rate Groups Section */}
+        {selectedSlot && rateGroups.length > 0 && (
+          <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
+            <h3 className="text-2xl font-bold text-gray-900 mb-6">Select Guests</h3>
+            
+            {rateGroupsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600">Loading pricing options...</span>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {rateGroupSelections.map((selection, index) => (
+                  <div key={selection.rateGroup.id} className="border border-gray-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900">{selection.rateGroup.rate_for}</h4>
+                        <p className="text-sm text-gray-600">
+                          ${parseFloat(selection.rateGroup.rate).toFixed(2)} per person
+                          {parseFloat(selection.rateGroup.permit_fee) > 0 && (
+                            <span> + ${parseFloat(selection.rateGroup.permit_fee).toFixed(2)} permit fee</span>
+                          )}
+                          {parseFloat(selection.rateGroup.additional_charge) > 0 && (
+                            <span> + ${parseFloat(selection.rateGroup.additional_charge).toFixed(2)} additional charge</span>
+                          )}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center border border-gray-300 rounded-lg">
+                          <button
+                            onClick={() => updateRateGroupQuantity(index, selection.quantity - 1)}
+                            disabled={selection.quantity === 0}
+                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-l-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                          
+                          <div className="px-4 py-2 text-center min-w-[60px] border-l border-r border-gray-300">
+                            <span className="font-semibold text-lg">{selection.quantity}</span>
+                          </div>
+                          
+                          <button
+                            onClick={() => updateRateGroupQuantity(index, selection.quantity + 1)}
+                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-r-lg transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        </div>
+                        
+                        {selection.quantity > 0 && (
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-green-600">
+                              ${selection.total.toFixed(2)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              ${selection.subtotal.toFixed(2)} + ${selection.commission.toFixed(2)} fees
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {selection.rateGroup.description && (
+                      <p className="text-sm text-gray-600 mt-2">{selection.rateGroup.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Booking Summary */}
-        {selectedSlot && (
+        {selectedSlot && getTotalGuests() > 0 && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Booking Summary</h3>
             
@@ -397,22 +578,34 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                     <span className="font-medium">{formatDuration(packageData.hours, packageData.minutes)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Available Seats:</span>
-                    <span className="font-medium">{selectedSlot.seats}</span>
+                    <span className="text-gray-600">Total Guests:</span>
+                    <span className="font-medium">{getTotalGuests()}</span>
                   </div>
                 </div>
               </div>
               
               <div>
-                <h4 className="font-semibold text-gray-700 mb-4">Pricing</h4>
+                <h4 className="font-semibold text-gray-700 mb-4">Pricing Breakdown</h4>
                 <div className="space-y-3">
-                  {selectedSlot.custom_rate > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Price per person:</span>
-                      <span className="font-medium text-green-600">${selectedSlot.custom_rate}</span>
-                    </div>
-                  )}
+                  {rateGroupSelections
+                    .filter(selection => selection.quantity > 0)
+                    .map((selection, index) => (
+                      <div key={index} className="flex justify-between text-sm">
+                        <span className="text-gray-600">
+                          {selection.quantity}x {selection.rateGroup.rate_for}
+                        </span>
+                        <span className="font-medium">${selection.total.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  
                   <div className="pt-3 border-t border-gray-200">
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>Total Amount:</span>
+                      <span className="text-green-600">${getTotalAmount().toFixed(2)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-3">
                     <button
                       onClick={handleBooking}
                       className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"

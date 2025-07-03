@@ -110,6 +110,42 @@ export interface TimeSlotsResponse {
   };
 }
 
+export interface RateGroup {
+  id: number;
+  rate_for: string;
+  rate: string;
+  tour_package_id: number;
+  custom_date_id: number | null;
+  processing_charge_percentage: string;
+  additional_charge: string;
+  partner_fee_type: string | null;
+  partner_fee_percentage: string;
+  partner_fee_amount: string;
+  permit_fee: string;
+  description: string;
+  min_pax_allowed: number;
+  max_pax_allowed: number;
+  is_group_rate: number;
+  min_group_size: number;
+  max_group_size: number;
+  processing_fee: string;
+  tax: string;
+}
+
+export interface RateGroupsResponse {
+  message: string;
+  code: number;
+  data: RateGroup[];
+}
+
+export interface RateGroupSelection {
+  rateGroup: RateGroup;
+  quantity: number;
+  subtotal: number;
+  commission: number;
+  total: number;
+}
+
 export interface FilterOptions {
   tenant: string;
   duration: string;
