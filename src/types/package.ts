@@ -157,3 +157,64 @@ export interface FilterOptions {
   category: string;
   searchTerm: string;
 }
+
+// Custom Form Types
+export interface FormFieldOption {
+  id: string;
+  name: string;
+  value: string;
+}
+
+export interface FormFieldAttrs {
+  options?: FormFieldOption[];
+  max?: string;
+  min?: string;
+}
+
+export interface FormFieldPriceInfo {
+  type: string;
+  unit: 'setprice' | 'priceperpax' | 'n';
+  price: string;
+  enabled: string;
+  inventory: string;
+}
+
+export interface FormField {
+  id: string;
+  name: string;
+  type: 'checkbox' | 'radio' | 'select' | 'text' | 'textarea' | 'number';
+  order: string;
+  default: string;
+  required: string;
+  priceInfo: FormFieldPriceInfo;
+  visibility: 'frontend' | 'backend' | 'both';
+  description: string;
+  attrs?: FormFieldAttrs;
+}
+
+export interface CustomForm {
+  id: number;
+  form_name: string;
+  description: string;
+  status: string;
+  form_package_id: number;
+  form_fields: FormField[];
+}
+
+export interface CustomFormResponse {
+  message: string;
+  code: number;
+  data: {
+    tenant_id: string;
+    custom_form: CustomForm;
+  };
+}
+
+export interface AddOnSelection {
+  field: FormField;
+  value: any;
+  quantity?: number;
+  subtotal: number;
+  commission: number;
+  total: number;
+}

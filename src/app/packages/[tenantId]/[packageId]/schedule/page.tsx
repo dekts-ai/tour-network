@@ -3,7 +3,9 @@
 import { use, useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { Package, PackageDetailsResponse, TimeSlot, TimeSlotsResponse, RateGroup, RateGroupsResponse, RateGroupSelection } from '@/types/package';
+import { Package, PackageDetailsResponse, TimeSlot, TimeSlotsResponse, RateGroup, RateGroupsResponse, RateGroupSelection, CustomFormResponse, CustomForm, FormField, AddOnSelection } from '@/types/package';
+import { FormFieldManager } from '@/utils/formUtils';
+import AddOnField from '@/components/AddOnField';
 import api from '@/services/api';
 
 interface SchedulePageProps {
@@ -24,9 +26,12 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [rateGroups, setRateGroups] = useState<RateGroup[]>([]);
   const [rateGroupSelections, setRateGroupSelections] = useState<RateGroupSelection[]>([]);
+  const [customForm, setCustomForm] = useState<CustomForm | null>(null);
+  const [addOnSelections, setAddOnSelections] = useState<{ [key: string]: any }>({});
   const [loading, setLoading] = useState(true);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [rateGroupsLoading, setRateGroupsLoading] = useState(false);
+  const [customFormLoading, setCustomFormLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [hasCustomRatesInSlots, setHasCustomRatesInSlots] = useState(false);
@@ -64,6 +69,39 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
     fetchPackageDetails();
   }, [resolvedParams.tenantId, resolvedParams.packageId]);
+
+  // Fetch custom form
+  useEffect(() => {
+    const fetchCustomForm = async () => {
+      try {
+        setCustomFormLoading(true);
+        const response = await api.get<CustomFormResponse>(`/custom-form/${resolvedParams.tenantId}/${resolvedParams.packageId}`);
+        
+        if (response.data.code === 200) {
+          setCustomForm(response.data.data.custom_form);
+          
+          // Initialize add-on selections with default values
+          const visibleFields = FormFieldManager.getVisibleFields(response.data.data.custom_form.form_fields);
+          const initialSelections: { [key: string]: any } = {};
+          
+          visibleFields.forEach(field => {
+            initialSelections[field.id] = FormFieldManager.getDefaultValue(field);
+          });
+          
+          setAddOnSelections(initialSelections);
+        }
+      } catch (err) {
+        console.error('Error fetching custom form:', err);
+        // Don't set error state as custom form might not exist for all packages
+      } finally {
+        setCustomFormLoading(false);
+      }
+    };
+
+    if (packageData) {
+      fetchCustomForm();
+    }
+  }, [packageData, resolvedParams.tenantId, resolvedParams.packageId]);
 
   // Fetch time slots when date changes
   useEffect(() => {
@@ -209,12 +247,90 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     setRateGroupSelections(updatedSelections);
   };
 
+  const updateAddOnSelection = (fieldId: string, value: any) => {
+    setAddOnSelections(prev => ({
+      ...prev,
+      [fieldId]: value
+    }));
+  };
+
   const getTotalGuests = () => {
     return rateGroupSelections.reduce((total, selection) => total + selection.quantity, 0);
   };
 
   const getTotalAmount = () => {
-    return rateGroupSelections.reduce((total, selection) => total + selection.total, 0);
+    const rateGroupTotal = rateGroupSelections.reduce((total, selection) => total + selection.total, 0);
+    const addOnTotal = getAddOnTotal();
+    return rateGroupTotal + addOnTotal;
+  };
+
+  const getAddOnTotal = () => {
+    if (!customForm || !packageData) return 0;
+    
+    const visibleFields = FormFieldManager.getVisibleFields(customForm.form_fields);
+    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+    const totalGuests = getTotalGuests();
+    
+    return visibleFields.reduce((total, field) => {
+      const value = addOnSelections[field.id];
+      if (!value) return total;
+      
+      const pricing = FormFieldManager.calculateAddOnPricing(
+        field,
+        value,
+        1,
+        totalGuests,
+        serviceCommissionPercentage
+      );
+      
+      return total + pricing.total;
+    }, 0);
+  };
+
+  const getAddOnSubtotal = () => {
+    if (!customForm || !packageData) return 0;
+    
+    const visibleFields = FormFieldManager.getVisibleFields(customForm.form_fields);
+    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+    const totalGuests = getTotalGuests();
+    
+    return visibleFields.reduce((total, field) => {
+      const value = addOnSelections[field.id];
+      if (!value) return total;
+      
+      const pricing = FormFieldManager.calculateAddOnPricing(
+        field,
+        value,
+        1,
+        totalGuests,
+        serviceCommissionPercentage
+      );
+      
+      return total + pricing.subtotal;
+    }, 0);
+  };
+
+  const getAddOnCommission = () => {
+    if (!customForm || !packageData) return 0;
+    
+    const visibleFields = FormFieldManager.getVisibleFields(customForm.form_fields);
+    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+    const totalGuests = getTotalGuests();
+    
+    return visibleFields.reduce((total, field) => {
+      const value = addOnSelections[field.id];
+      if (!value) return total;
+      
+      const pricing = FormFieldManager.calculateAddOnPricing(
+        field,
+        value,
+        1,
+        totalGuests,
+        serviceCommissionPercentage
+      );
+      
+      return total + pricing.commission;
+    }, 0);
   };
 
   const roundout = (amount: number, places: number = 2) => {
@@ -331,6 +447,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         slot: selectedSlot,
         date: selectedDate,
         rateGroupSelections: rateGroupSelections.filter(s => s.quantity > 0),
+        addOnSelections,
         totalGuests,
         totalAmount: getTotalAmount()
       });
@@ -359,6 +476,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
   const today = new Date();
+  const visibleAddOnFields = customForm ? FormFieldManager.getVisibleFields(customForm.form_fields) : [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -651,6 +769,34 @@ export default function SchedulePage({ params }: SchedulePageProps) {
           </div>
         )}
 
+        {/* Add-ons Section */}
+        {visibleAddOnFields.length > 0 && getTotalGuests() > 0 && (
+          <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
+            <h3 className="text-2xl font-bold text-gray-900 mb-6">Tour Add-ons</h3>
+            
+            {customFormLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600">Loading add-ons...</span>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {visibleAddOnFields.map((field) => (
+                  <div key={field.id} className="border border-gray-200 rounded-lg p-6">
+                    <AddOnField
+                      field={field}
+                      value={addOnSelections[field.id]}
+                      onChange={(value) => updateAddOnSelection(field.id, value)}
+                      totalGuests={getTotalGuests()}
+                      serviceCommissionPercentage={rateGroupCommission ?? parseFloat(packageData.service_commission_percentage)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Booking Summary */}
         {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && timeSlots.length > 0)) && getTotalGuests() > 0 && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
@@ -688,6 +834,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
               <div>
                 <h4 className="font-semibold text-gray-700 mb-4">Pricing Breakdown</h4>
                 <div className="space-y-3">
+                  {/* Rate Groups */}
                   {rateGroupSelections
                     .filter(selection => selection.quantity > 0)
                     .map((selection, index) => (
@@ -698,6 +845,46 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                         <span className="font-medium">${selection.total.toFixed(2)}</span>
                       </div>
                     ))}
+                  
+                  {/* Add-ons */}
+                  {visibleAddOnFields
+                    .filter(field => {
+                      const value = addOnSelections[field.id];
+                      return value && FormFieldManager.hasPricing(field);
+                    })
+                    .map((field) => {
+                      const value = addOnSelections[field.id];
+                      const pricing = FormFieldManager.calculateAddOnPricing(
+                        field,
+                        value,
+                        1,
+                        getTotalGuests(),
+                        rateGroupCommission ?? parseFloat(packageData.service_commission_percentage)
+                      );
+                      
+                      return (
+                        <div key={field.id} className="flex justify-between text-sm">
+                          <span className="text-gray-600">
+                            {field.name}
+                          </span>
+                          <span className="font-medium">${pricing.total.toFixed(2)}</span>
+                        </div>
+                      );
+                    })}
+                  
+                  {/* Subtotals */}
+                  {getAddOnTotal() > 0 && (
+                    <div className="pt-3 border-t border-gray-200">
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Tour Subtotal:</span>
+                        <span>${rateGroupSelections.reduce((total, selection) => total + selection.total, 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Add-ons Subtotal:</span>
+                        <span>${getAddOnTotal().toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="pt-3 border-t border-gray-200">
                     <div className="flex justify-between text-lg font-bold">
