@@ -305,7 +305,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const getTourSubtotal = () => {
-    return rateGroupSelections.reduce((total, selection) => total + selection.total, 0);
+    return rateGroupSelections.reduce((total, selection) => total + selection.subtotal, 0);
+  };
+
+  const getTourCommission = () => {
+    return rateGroupSelections.reduce((total, selection) => total + selection.commission, 0);
   };
 
   const getPromoDiscount = () => {
@@ -320,42 +324,6 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       // Fixed Money - don't exceed tour subtotal
       return Math.min(discountValue, tourSubtotal);
     }
-  };
-
-  const getTotalAmount = () => {
-    const tourSubtotal = getTourSubtotal();
-    const promoDiscount = getPromoDiscount();
-    const addOnTotal = getAddOnTotal();
-    
-    return tourSubtotal - promoDiscount + addOnTotal;
-  };
-
-  const getAddOnTotal = () => {
-    if (!customForm || !packageData) return 0;
-    
-    const visibleFields = FormFieldManager.getVisibleFields(customForm.form_fields);
-    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
-    const totalGuests = getTotalGuests();
-    
-    return visibleFields.reduce((total, field) => {
-      const value = addOnSelections[field.id];
-      if (!value) return total;
-      
-      // For radio fields, check if value should be priced (not "0")
-      if (field.type === 'radio' && !FormFieldManager.shouldPriceRadioValue(value)) {
-        return total;
-      }
-      
-      const pricing = FormFieldManager.calculateAddOnPricing(
-        field,
-        value,
-        1,
-        totalGuests,
-        serviceCommissionPercentage
-      );
-      
-      return total + pricing.total;
-    }, 0);
   };
 
   const getAddOnSubtotal = () => {
@@ -412,6 +380,22 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       
       return total + pricing.commission;
     }, 0);
+  };
+
+  const getTotalSubtotal = () => {
+    const tourSubtotal = getTourSubtotal();
+    const promoDiscount = getPromoDiscount();
+    const addOnSubtotal = getAddOnSubtotal();
+    
+    return tourSubtotal - promoDiscount + addOnSubtotal;
+  };
+
+  const getTotalFees = () => {
+    return getTourCommission() + getAddOnCommission();
+  };
+
+  const getTotalAmount = () => {
+    return getTotalSubtotal() + getTotalFees();
   };
 
   const roundout = (amount: number, places: number = 2) => {
@@ -899,7 +883,8 @@ export default function SchedulePage({ params }: SchedulePageProps) {
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Booking Summary</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Tour Details */}
               <div>
                 <h4 className="font-semibold text-gray-700 mb-4">Tour Details</h4>
                 <div className="space-y-3">
@@ -928,96 +913,117 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                 </div>
               </div>
               
+              {/* Pricing Breakdown */}
               <div>
                 <h4 className="font-semibold text-gray-700 mb-4">Pricing Breakdown</h4>
-                <div className="space-y-3">
-                  {/* Rate Groups */}
-                  {rateGroupSelections
-                    .filter(selection => selection.quantity > 0)
-                    .map((selection, index) => (
-                      <div key={index} className="flex justify-between text-sm">
-                        <span className="text-gray-600">
-                          {selection.quantity}x {selection.rateGroup.rate_for}
-                        </span>
-                        <span className="font-medium">${selection.total.toFixed(2)}</span>
-                      </div>
-                    ))}
-                  
-                  {/* Tour Subtotal */}
-                  <div className="flex justify-between text-sm font-medium pt-2 border-t border-gray-200">
-                    <span className="text-gray-700">Tour Subtotal:</span>
-                    <span>${getTourSubtotal().toFixed(2)}</span>
-                  </div>
-                  
-                  {/* Promo Discount */}
-                  {appliedPromoCode && getPromoDiscount() > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-green-600">
-                        Promo Discount ({appliedPromoCode.discount_value_type === 'Percent' 
-                          ? `${appliedPromoCode.discount_value}%` 
-                          : `$${appliedPromoCode.discount_value}`}):
-                      </span>
-                      <span className="text-green-600 font-medium">-${getPromoDiscount().toFixed(2)}</span>
-                    </div>
-                  )}
-                  
-                  {/* Add-ons */}
-                  {visibleAddOnFields
-                    .filter(field => {
-                      const value = addOnSelections[field.id];
-                      if (!value || !FormFieldManager.hasPricing(field)) return false;
-                      
-                      // For radio fields, check if value should be priced (not "0")
-                      if (field.type === 'radio') {
-                        return FormFieldManager.shouldPriceRadioValue(value);
-                      }
-                      
-                      return true;
-                    })
-                    .map((field) => {
-                      const value = addOnSelections[field.id];
-                      const pricing = FormFieldManager.calculateAddOnPricing(
-                        field,
-                        value,
-                        1,
-                        getTotalGuests(),
-                        rateGroupCommission ?? parseFloat(packageData.service_commission_percentage)
-                      );
-                      
-                      return (
-                        <div key={field.id} className="flex justify-between text-sm">
-                          <span className="text-gray-600">
-                            {field.name}
+                
+                {/* Tour Section */}
+                <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                  <h5 className="font-medium text-blue-900 mb-3">Tour Pricing</h5>
+                  <div className="space-y-2">
+                    {rateGroupSelections
+                      .filter(selection => selection.quantity > 0)
+                      .map((selection, index) => (
+                        <div key={index} className="flex justify-between text-sm">
+                          <span className="text-blue-700">
+                            {selection.quantity}x {selection.rateGroup.rate_for}
                           </span>
-                          <span className="font-medium">${pricing.total.toFixed(2)}</span>
+                          <span className="font-medium text-blue-800">${selection.subtotal.toFixed(2)}</span>
                         </div>
-                      );
-                    })}
-                  
-                  {/* Add-ons Subtotal */}
-                  {getAddOnTotal() > 0 && (
+                      ))}
+                    
+                    <div className="flex justify-between text-sm font-medium pt-2 border-t border-blue-200">
+                      <span className="text-blue-800">Tour Subtotal:</span>
+                      <span className="text-blue-900">${getTourSubtotal().toFixed(2)}</span>
+                    </div>
+                    
+                    {/* Promo Discount */}
+                    {appliedPromoCode && getPromoDiscount() > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-green-600">
+                          Promo Discount ({appliedPromoCode.discount_value_type === 'Percent' 
+                            ? `${appliedPromoCode.discount_value}%` 
+                            : `$${appliedPromoCode.discount_value}`}):
+                        </span>
+                        <span className="text-green-600 font-medium">-${getPromoDiscount().toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Add-ons Section */}
+                {getAddOnSubtotal() > 0 && (
+                  <div className="bg-purple-50 rounded-lg p-4 mb-4">
+                    <h5 className="font-medium text-purple-900 mb-3">Add-ons</h5>
+                    <div className="space-y-2">
+                      {visibleAddOnFields
+                        .filter(field => {
+                          const value = addOnSelections[field.id];
+                          if (!value || !FormFieldManager.hasPricing(field)) return false;
+                          
+                          // For radio fields, check if value should be priced (not "0")
+                          if (field.type === 'radio') {
+                            return FormFieldManager.shouldPriceRadioValue(value);
+                          }
+                          
+                          return true;
+                        })
+                        .map((field) => {
+                          const value = addOnSelections[field.id];
+                          const pricing = FormFieldManager.calculateAddOnPricing(
+                            field,
+                            value,
+                            1,
+                            getTotalGuests(),
+                            rateGroupCommission ?? parseFloat(packageData.service_commission_percentage)
+                          );
+                          
+                          return (
+                            <div key={field.id} className="flex justify-between text-sm">
+                              <span className="text-purple-700">{field.name}</span>
+                              <span className="font-medium text-purple-800">${pricing.subtotal.toFixed(2)}</span>
+                            </div>
+                          );
+                        })}
+                      
+                      <div className="flex justify-between text-sm font-medium pt-2 border-t border-purple-200">
+                        <span className="text-purple-800">Add-ons Subtotal:</span>
+                        <span className="text-purple-900">${getAddOnSubtotal().toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Final Totals */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm font-medium">
+                      <span className="text-gray-700">Total Subtotal:</span>
+                      <span className="text-gray-900">${getTotalSubtotal().toFixed(2)}</span>
+                    </div>
+                    
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Add-ons Subtotal:</span>
-                      <span className="font-medium">${getAddOnTotal().toFixed(2)}</span>
+                      <span className="text-gray-600">Service Fees:</span>
+                      <span className="text-gray-700">${getTotalFees().toFixed(2)}</span>
                     </div>
-                  )}
-                  
-                  <div className="pt-3 border-t border-gray-200">
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Total Amount:</span>
-                      <span className="text-green-600">${getTotalAmount().toFixed(2)}</span>
+                    
+                    <div className="pt-2 border-t border-gray-300">
+                      <div className="flex justify-between text-lg font-bold">
+                        <span className="text-gray-900">Total Amount:</span>
+                        <span className="text-green-600">${getTotalAmount().toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="pt-3">
-                    <button
-                      onClick={handleBooking}
-                      disabled={!selectedSlot && hasCustomRatesInSlots}
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                    >
-                      Continue to Booking
-                    </button>
-                  </div>
+                </div>
+                
+                <div className="pt-4">
+                  <button
+                    onClick={handleBooking}
+                    disabled={!selectedSlot && hasCustomRatesInSlots}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  >
+                    Continue to Booking
+                  </button>
                 </div>
               </div>
             </div>
