@@ -931,23 +931,24 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                           <span className="font-medium text-blue-800">${selection.subtotal.toFixed(2)}</span>
                         </div>
                       ))}
-                    
-                    <div className="flex justify-between text-sm font-medium pt-2 border-t border-blue-200">
-                      <span className="text-blue-800">Tour Subtotal:</span>
-                      <span className="text-blue-900">${getTourSubtotal().toFixed(2)}</span>
-                    </div>
-                    
-                    {/* Promo Discount */}
-                    {appliedPromoCode && getPromoDiscount() > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-green-600">
-                          Promo Discount ({appliedPromoCode.discount_value_type === 'Percent' 
-                            ? `${appliedPromoCode.discount_value}%` 
+
+                    <div className="text-sm font-medium pt-2 border-t border-blue-200 space-y-2">
+                      {/* Promo Discount */}
+                      {appliedPromoCode && getPromoDiscount() > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-600">
+                            Promo Discount ({appliedPromoCode.discount_value_type === 'Percent' 
+                              ? `${appliedPromoCode.discount_value}%` 
                             : `$${appliedPromoCode.discount_value}`}):
-                        </span>
-                        <span className="text-green-600 font-medium">-${getPromoDiscount().toFixed(2)}</span>
+                          </span>
+                          <span className="text-green-600">-${getPromoDiscount().toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-blue-800">Tour Subtotal:</span>
+                        <span className="text-blue-900">${getTourSubtotal().toFixed(2)}</span>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
 
