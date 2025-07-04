@@ -946,7 +946,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                       )}
                       <div className="flex justify-between text-sm">
                         <span className="text-blue-800">Tour Subtotal:</span>
-                        <span className="text-blue-900">${getTourSubtotal().toFixed(2)}</span>
+                        <span className="text-blue-900">${(getTourSubtotal() - getPromoDiscount()).toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
