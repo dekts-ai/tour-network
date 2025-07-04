@@ -3,9 +3,10 @@
 import { use, useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { Package, PackageDetailsResponse, TimeSlot, TimeSlotsResponse, RateGroup, RateGroupsResponse, RateGroupSelection, CustomFormResponse, CustomForm, FormField, AddOnSelection } from '@/types/package';
+import { Package, PackageDetailsResponse, TimeSlot, TimeSlotsResponse, RateGroup, RateGroupsResponse, RateGroupSelection, CustomFormResponse, CustomForm, FormField, AddOnSelection, PromoCode, PromoCodeResponse, PromoCodeRequest } from '@/types/package';
 import { FormFieldManager } from '@/utils/formUtils';
 import AddOnField from '@/components/AddOnField';
+import PromoCodeSection from '@/components/PromoCodeSection';
 import api from '@/services/api';
 
 interface SchedulePageProps {
@@ -28,11 +29,14 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [rateGroupSelections, setRateGroupSelections] = useState<RateGroupSelection[]>([]);
   const [customForm, setCustomForm] = useState<CustomForm | null>(null);
   const [addOnSelections, setAddOnSelections] = useState<{ [key: string]: any }>({});
+  const [appliedPromoCode, setAppliedPromoCode] = useState<PromoCode | null>(null);
   const [loading, setLoading] = useState(true);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [rateGroupsLoading, setRateGroupsLoading] = useState(false);
   const [customFormLoading, setCustomFormLoading] = useState(false);
+  const [promoCodeLoading, setPromoCodeLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [promoCodeError, setPromoCodeError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [hasCustomRatesInSlots, setHasCustomRatesInSlots] = useState(false);
   const [rateGroupCommission, setRateGroupCommission] = useState<number | null>(null);
@@ -107,6 +111,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   useEffect(() => {
     if (selectedDate && packageData) {
       fetchTimeSlots();
+      // Reset promo code when date changes
+      setAppliedPromoCode(null);
+      setPromoCodeError(null);
     }
   }, [selectedDate, packageData]);
 
@@ -194,6 +201,45 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     }
   };
 
+  const applyPromoCode = async (code: string) => {
+    try {
+      setPromoCodeLoading(true);
+      setPromoCodeError(null);
+      
+      const requestData: PromoCodeRequest = {
+        coupon: code,
+        date: selectedDate
+      };
+      
+      const response = await api.post<PromoCodeResponse>(`/set-coupon/${resolvedParams.tenantId}/${resolvedParams.packageId}`, requestData);
+      
+      if (response.data.code === 200) {
+        setAppliedPromoCode(response.data.data.coupon);
+        setPromoCodeError(null);
+      }
+    } catch (error: any) {
+      console.error('Error applying promo code:', error);
+      
+      // Handle specific error codes
+      if (error.response?.status === 410) {
+        setPromoCodeError('Your coupon code is no longer valid.');
+      } else if (error.response?.status === 404) {
+        setPromoCodeError('Your coupon code is not valid.');
+      } else {
+        setPromoCodeError('Failed to apply promo code. Please try again.');
+      }
+      
+      setAppliedPromoCode(null);
+    } finally {
+      setPromoCodeLoading(false);
+    }
+  };
+
+  const removePromoCode = () => {
+    setAppliedPromoCode(null);
+    setPromoCodeError(null);
+  };
+
   const calculatePricing = (rateGroup: RateGroup, quantity: number, serviceCommissionPercentage: number) => {
     if (quantity === 0) {
       return { subtotal: 0, commission: 0, total: 0 };
@@ -258,10 +304,30 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     return rateGroupSelections.reduce((total, selection) => total + selection.quantity, 0);
   };
 
+  const getTourSubtotal = () => {
+    return rateGroupSelections.reduce((total, selection) => total + selection.total, 0);
+  };
+
+  const getPromoDiscount = () => {
+    if (!appliedPromoCode) return 0;
+    
+    const tourSubtotal = getTourSubtotal();
+    const discountValue = parseFloat(appliedPromoCode.discount_value);
+    
+    if (appliedPromoCode.discount_value_type === 'Percent') {
+      return (tourSubtotal * discountValue) / 100;
+    } else {
+      // Fixed Money - don't exceed tour subtotal
+      return Math.min(discountValue, tourSubtotal);
+    }
+  };
+
   const getTotalAmount = () => {
-    const rateGroupTotal = rateGroupSelections.reduce((total, selection) => total + selection.total, 0);
+    const tourSubtotal = getTourSubtotal();
+    const promoDiscount = getPromoDiscount();
     const addOnTotal = getAddOnTotal();
-    return rateGroupTotal + addOnTotal;
+    
+    return tourSubtotal - promoDiscount + addOnTotal;
   };
 
   const getAddOnTotal = () => {
@@ -463,6 +529,8 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         date: selectedDate,
         rateGroupSelections: rateGroupSelections.filter(s => s.quantity > 0),
         addOnSelections,
+        appliedPromoCode,
+        promoDiscount: getPromoDiscount(),
         totalGuests,
         totalAmount: getTotalAmount()
       });
@@ -784,6 +852,20 @@ export default function SchedulePage({ params }: SchedulePageProps) {
           </div>
         )}
 
+        {/* Promo Code Section */}
+        {getTotalGuests() > 0 && getTourSubtotal() > 0 && (
+          <div className="mt-12">
+            <PromoCodeSection
+              onApplyPromoCode={applyPromoCode}
+              appliedPromoCode={appliedPromoCode}
+              promoCodeLoading={promoCodeLoading}
+              promoCodeError={promoCodeError}
+              onRemovePromoCode={removePromoCode}
+              tourSubtotal={getTourSubtotal()}
+            />
+          </div>
+        )}
+
         {/* Add-ons Section */}
         {visibleAddOnFields.length > 0 && getTotalGuests() > 0 && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
@@ -861,6 +943,24 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                       </div>
                     ))}
                   
+                  {/* Tour Subtotal */}
+                  <div className="flex justify-between text-sm font-medium pt-2 border-t border-gray-200">
+                    <span className="text-gray-700">Tour Subtotal:</span>
+                    <span>${getTourSubtotal().toFixed(2)}</span>
+                  </div>
+                  
+                  {/* Promo Discount */}
+                  {appliedPromoCode && getPromoDiscount() > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-green-600">
+                        Promo Discount ({appliedPromoCode.discount_value_type === 'Percent' 
+                          ? `${appliedPromoCode.discount_value}%` 
+                          : `$${appliedPromoCode.discount_value}`}):
+                      </span>
+                      <span className="text-green-600 font-medium">-${getPromoDiscount().toFixed(2)}</span>
+                    </div>
+                  )}
+                  
                   {/* Add-ons */}
                   {visibleAddOnFields
                     .filter(field => {
@@ -894,17 +994,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                       );
                     })}
                   
-                  {/* Subtotals */}
+                  {/* Add-ons Subtotal */}
                   {getAddOnTotal() > 0 && (
-                    <div className="pt-3 border-t border-gray-200">
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Tour Subtotal:</span>
-                        <span>${rateGroupSelections.reduce((total, selection) => total + selection.total, 0).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Add-ons Subtotal:</span>
-                        <span>${getAddOnTotal().toFixed(2)}</span>
-                      </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Add-ons Subtotal:</span>
+                      <span className="font-medium">${getAddOnTotal().toFixed(2)}</span>
                     </div>
                   )}
                   

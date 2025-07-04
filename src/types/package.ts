@@ -218,3 +218,25 @@ export interface AddOnSelection {
   commission: number;
   total: number;
 }
+
+// Promo Code Types
+export interface PromoCode {
+  id: number;
+  max_allowed_usages: number;
+  discount_value: string;
+  discount_value_type: 'Percent' | 'Fixed Money';
+}
+
+export interface PromoCodeResponse {
+  message: string;
+  code: number;
+  data: {
+    tenant_id: string;
+    coupon: PromoCode;
+  };
+}
+
+export interface PromoCodeRequest {
+  coupon: string;
+  date: string;
+}
