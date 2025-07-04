@@ -57,6 +57,13 @@ export class FormFieldManager {
   }
 
   /**
+   * Check if radio field value should be priced (not "0")
+   */
+  static shouldPriceRadioValue(value: string): boolean {
+    return value !== '0' && value !== '' && value !== null && value !== undefined;
+  }
+
+  /**
    * Calculate pricing for an add-on field
    */
   static calculateAddOnPricing(
@@ -79,7 +86,8 @@ export class FormFieldManager {
         // Fixed price regardless of guests
         if (field.type === 'checkbox' && value === true) {
           subtotal = price;
-        } else if (field.type === 'radio' && value) {
+        } else if (field.type === 'radio' && value && this.shouldPriceRadioValue(value)) {
+          // Only apply pricing if radio value is not "0"
           subtotal = price;
         } else if (field.type === 'number' && value > 0) {
           subtotal = price * value;
@@ -90,7 +98,8 @@ export class FormFieldManager {
         // Price per person
         if (field.type === 'checkbox' && value === true) {
           subtotal = price * totalGuests;
-        } else if (field.type === 'radio' && value) {
+        } else if (field.type === 'radio' && value && this.shouldPriceRadioValue(value)) {
+          // Only apply pricing if radio value is not "0"
           subtotal = price * totalGuests;
         } else if (field.type === 'number' && value > 0) {
           subtotal = price * value;

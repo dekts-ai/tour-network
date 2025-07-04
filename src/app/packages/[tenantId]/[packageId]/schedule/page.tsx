@@ -275,6 +275,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       const value = addOnSelections[field.id];
       if (!value) return total;
       
+      // For radio fields, check if value should be priced (not "0")
+      if (field.type === 'radio' && !FormFieldManager.shouldPriceRadioValue(value)) {
+        return total;
+      }
+      
       const pricing = FormFieldManager.calculateAddOnPricing(
         field,
         value,
@@ -298,6 +303,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       const value = addOnSelections[field.id];
       if (!value) return total;
       
+      // For radio fields, check if value should be priced (not "0")
+      if (field.type === 'radio' && !FormFieldManager.shouldPriceRadioValue(value)) {
+        return total;
+      }
+      
       const pricing = FormFieldManager.calculateAddOnPricing(
         field,
         value,
@@ -320,6 +330,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     return visibleFields.reduce((total, field) => {
       const value = addOnSelections[field.id];
       if (!value) return total;
+      
+      // For radio fields, check if value should be priced (not "0")
+      if (field.type === 'radio' && !FormFieldManager.shouldPriceRadioValue(value)) {
+        return total;
+      }
       
       const pricing = FormFieldManager.calculateAddOnPricing(
         field,
@@ -850,7 +865,14 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                   {visibleAddOnFields
                     .filter(field => {
                       const value = addOnSelections[field.id];
-                      return value && FormFieldManager.hasPricing(field);
+                      if (!value || !FormFieldManager.hasPricing(field)) return false;
+                      
+                      // For radio fields, check if value should be priced (not "0")
+                      if (field.type === 'radio') {
+                        return FormFieldManager.shouldPriceRadioValue(value);
+                      }
+                      
+                      return true;
                     })
                     .map((field) => {
                       const value = addOnSelections[field.id];

@@ -30,6 +30,25 @@ const AddOnField: React.FC<AddOnFieldProps> = ({
     serviceCommissionPercentage
   );
 
+  // Check if current value should show pricing
+  const shouldShowPricing = () => {
+    if (!hasPricing || !value) return false;
+    
+    if (field.type === 'radio') {
+      return FormFieldManager.shouldPriceRadioValue(value);
+    }
+    
+    if (field.type === 'checkbox') {
+      return value === true;
+    }
+    
+    if (field.type === 'number') {
+      return value > 0;
+    }
+    
+    return false;
+  };
+
   const renderField = () => {
     switch (field.type) {
       case 'checkbox':
@@ -72,22 +91,37 @@ const AddOnField: React.FC<AddOnFieldProps> = ({
               )}
             </label>
             <div className="space-y-2">
-              {field.attrs?.options?.map((option) => (
-                <div key={option.id} className="flex items-center gap-2">
-                  <input
-                    id={option.id}
-                    type="radio"
-                    name={field.id}
-                    value={option.value}
-                    checked={value === option.value}
-                    onChange={(e) => onChange(e.target.value)}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 focus:ring-2"
-                  />
-                  <label htmlFor={option.id} className="text-sm text-gray-700 cursor-pointer">
-                    {option.name}
-                  </label>
-                </div>
-              ))}
+              {field.attrs?.options?.map((option) => {
+                const isSelected = value === option.value;
+                const willHavePrice = hasPricing && FormFieldManager.shouldPriceRadioValue(option.value);
+                
+                return (
+                  <div key={option.id} className="flex items-center gap-2">
+                    <input
+                      id={option.id}
+                      type="radio"
+                      name={field.id}
+                      value={option.value}
+                      checked={isSelected}
+                      onChange={(e) => onChange(e.target.value)}
+                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 focus:ring-2"
+                    />
+                    <label htmlFor={option.id} className="text-sm text-gray-700 cursor-pointer flex items-center gap-2">
+                      {option.name}
+                      {willHavePrice && (
+                        <span className="text-xs text-green-600 font-medium">
+                          ({pricingDisplay})
+                        </span>
+                      )}
+                      {option.value === '0' && hasPricing && (
+                        <span className="text-xs text-gray-500">
+                          (No charge)
+                        </span>
+                      )}
+                    </label>
+                  </div>
+                );
+              })}
             </div>
             {field.description && (
               <p className="text-xs text-gray-500 mt-1">{field.description}</p>
@@ -222,8 +256,8 @@ const AddOnField: React.FC<AddOnFieldProps> = ({
     <div className="space-y-2">
       {renderField()}
       
-      {/* Pricing Display */}
-      {hasPricing && value && (
+      {/* Pricing Display - Only show if value should be priced */}
+      {shouldShowPricing() && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
           <div className="flex justify-between items-center text-sm">
             <span className="text-green-700">Add-on Total:</span>
