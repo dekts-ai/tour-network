@@ -1,5 +1,6 @@
 import '@/styles/globals.css';
 import { PackagesProvider } from '@/contexts/PackagesContext';
+import { CartProvider } from '@/contexts/CartContext';
 
 export const metadata = {
   title: {
@@ -36,7 +37,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <PackagesProvider>
-          {children}
+          <CartProvider>
+            {children}
+          </CartProvider>
         </PackagesProvider>
       </body>
     </html>

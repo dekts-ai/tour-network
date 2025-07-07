@@ -4,10 +4,12 @@ import { use, useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Package, PackageDetailsResponse, TimeSlot, TimeSlotsResponse, RateGroup, RateGroupsResponse, RateGroupSelection, CustomFormResponse, CustomForm, FormField, AddOnSelection, PromoCode, PromoCodeResponse, PromoCodeRequest } from '@/types/package';
+import { CartItem } from '@/types/cart';
 import { FormFieldManager } from '@/utils/formUtils';
 import { TimezoneManager } from '@/utils/timezoneUtils';
 import AddOnField from '@/components/AddOnField';
 import PromoCodeSection from '@/components/PromoCodeSection';
+import BookingActions from '@/components/BookingActions';
 import api from '@/services/api';
 
 interface SchedulePageProps {
@@ -485,6 +487,10 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     return `${min}-${max} people`;
   };
 
+  const handleDateSelect = (dateStr: string) => {
+    setSelectedDate(dateStr);
+  };
+
   const handleSlotSelect = (slot: TimeSlot) => {
     if (slot.bookable_status === 'Open') {
       setSelectedSlot(slot);
@@ -502,25 +508,29 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     }
   };
 
-  const handleDateSelect = (dateStr: string) => {
-    setSelectedDate(dateStr);
-  };
-
-  const handleBooking = () => {
-    const totalGuests = getTotalGuests();
-    if (selectedSlot && totalGuests > 0) {
-      console.log('Booking details:', {
-        slot: selectedSlot,
-        date: selectedDate,
-        rateGroupSelections: rateGroupSelections.filter(s => s.quantity > 0),
-        addOnSelections,
-        appliedPromoCode,
+  // Create cart item for booking actions
+  const createCartItem = (): CartItem => {
+    return {
+      id: `${resolvedParams.tenantId}-${resolvedParams.packageId}-${Date.now()}`,
+      packageId: parseInt(resolvedParams.packageId),
+      tenantId: resolvedParams.tenantId,
+      packageName: packageData?.name || '',
+      selectedDate,
+      selectedSlot,
+      rateGroupSelections: rateGroupSelections.filter(s => s.quantity > 0),
+      addOnSelections,
+      appliedPromoCode,
+      pricing: {
+        tourSubtotal: getTourSubtotal(),
         promoDiscount: getPromoDiscount(),
-        totalGuests,
+        addOnSubtotal: getAddOnSubtotal(),
+        totalSubtotal: getTotalSubtotal(),
+        totalFees: getTotalFees(),
         totalAmount: getTotalAmount()
-      });
-      alert(`Booking confirmed for ${selectedSlot.time} on ${formatDate(selectedDate)} for ${totalGuests} guests`);
-    }
+      },
+      totalGuests: getTotalGuests(),
+      createdAt: new Date().toISOString()
+    };
   };
 
   if (loading) {
@@ -1077,13 +1087,10 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                 </div>
                 
                 <div className="pt-4">
-                  <button
-                    onClick={handleBooking}
+                  <BookingActions
+                    cartItem={createCartItem()}
                     disabled={!selectedSlot && hasCustomRatesInSlots}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                  >
-                    Continue to Booking
-                  </button>
+                  />
                 </div>
               </div>
             </div>

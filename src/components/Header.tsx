@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import CartIcon from './CartIcon';
 
 export default function Header() {
   return (
@@ -22,9 +23,7 @@ export default function Header() {
           </nav>
 
           <div className="flex items-center space-x-4">
-            <button className="bg-white text-blue-600 px-4 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
-              Book Now
-            </button>
+            <CartIcon />
           </div>
         </div>
       </div>
