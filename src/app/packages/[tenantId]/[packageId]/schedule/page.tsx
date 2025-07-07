@@ -92,7 +92,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         setCustomFormLoading(true);
         const response = await api.get<CustomFormResponse>(`/custom-form/${resolvedParams.tenantId}/${resolvedParams.packageId}`);
         
-        if (response.data.code === 200) {
+        if (response.data.code === 200 && response.data.data?.custom_form) {
           setCustomForm(response.data.data.custom_form);
           
           // Initialize add-on selections with default values
