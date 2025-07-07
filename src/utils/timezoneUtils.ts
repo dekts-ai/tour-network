@@ -13,56 +13,40 @@ export class TimezoneManager {
   }
 
   /**
+   * Get current date and time in the specified timezone
+   */
+  static getCurrentDateTimeInTimezone(timezone: string): Date {
+    // Get current time in the specified timezone
+    const now = new Date();
+    const timeInTimezone = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+    return timeInTimezone;
+  }
+
+  /**
    * Get current date in the specified timezone
    */
   static getCurrentDateInTimezone(timezone: string): Date {
-    const now = new Date();
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    
-    // Create a date in the target timezone
-    const targetDate = new Date(utc + (this.getTimezoneOffset(timezone) * 60000));
-    return targetDate;
+    const dateTime = this.getCurrentDateTimeInTimezone(timezone);
+    // Reset time to start of day
+    return new Date(dateTime.getFullYear(), dateTime.getMonth(), dateTime.getDate());
   }
 
   /**
-   * Get timezone offset in minutes for a given timezone
+   * Format date to YYYY-MM-DD string (for API calls)
    */
-  private static getTimezoneOffset(timezone: string): number {
-    const now = new Date();
-    const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
-    const targetDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-    
-    return (targetDate.getTime() - utcDate.getTime()) / (1000 * 60);
+  static formatDateToString(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   /**
-   * Format date to YYYY-MM-DD string in the specified timezone
+   * Create a date object from YYYY-MM-DD string
    */
-  static formatDateToString(date: Date, timezone: string): string {
-    const options: Intl.DateTimeFormatOptions = {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    };
-    
-    const formatter = new Intl.DateTimeFormat('en-CA', options); // en-CA gives YYYY-MM-DD format
-    return formatter.format(date);
-  }
-
-  /**
-   * Create a date object from YYYY-MM-DD string in the specified timezone
-   */
-  static createDateFromString(dateString: string, timezone: string): Date {
-    // Parse the date string and create a date in the specified timezone
+  static createDateFromString(dateString: string): Date {
     const [year, month, day] = dateString.split('-').map(Number);
-    
-    // Create date in UTC first
-    const utcDate = new Date(Date.UTC(year, month - 1, day));
-    
-    // Adjust for timezone
-    const timezoneOffset = this.getTimezoneOffset(timezone);
-    return new Date(utcDate.getTime() - (timezoneOffset * 60000));
+    return new Date(year, month - 1, day);
   }
 
   /**
@@ -70,7 +54,17 @@ export class TimezoneManager {
    */
   static getTodayString(timezone: string): string {
     const today = this.getCurrentDateInTimezone(timezone);
-    return this.formatDateToString(today, timezone);
+    return this.formatDateToString(today);
+  }
+
+  /**
+   * Get current time in HH:MM format for the specified timezone
+   */
+  static getCurrentTimeString(timezone: string): string {
+    const now = this.getCurrentDateTimeInTimezone(timezone);
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
   }
 
   /**
@@ -90,10 +84,40 @@ export class TimezoneManager {
   }
 
   /**
+   * Check if a time slot is in the past for today's date
+   */
+  static isTimeSlotInPast(slotTime: string, timezone: string): boolean {
+    const currentTime = this.getCurrentTimeString(timezone);
+    return slotTime < currentTime;
+  }
+
+  /**
+   * Filter time slots based on timezone and current time
+   */
+  static filterFutureSlots(slots: any[], selectedDate: string, timezone: string): any[] {
+    const isToday = this.isDateToday(selectedDate, timezone);
+    
+    if (!isToday) {
+      // If not today, return all slots
+      return slots;
+    }
+
+    // If today, filter out past time slots
+    return slots.filter(slot => {
+      if (slot.bookable_status === 'Closed') {
+        return true; // Keep closed slots for display
+      }
+      
+      // For open slots, check if time has passed
+      return !this.isTimeSlotInPast(slot.time, timezone);
+    });
+  }
+
+  /**
    * Format date for display with timezone awareness
    */
   static formatDateForDisplay(dateString: string, timezone: string): string {
-    const date = this.createDateFromString(dateString, timezone);
+    const date = this.createDateFromString(dateString);
     
     return date.toLocaleDateString('en-US', {
       timeZone: timezone,
@@ -121,7 +145,7 @@ export class TimezoneManager {
     const todayString = this.getTodayString(timezone);
     
     for (let i = 0; i < 42; i++) {
-      const dateStr = this.formatDateToString(currentDate, timezone);
+      const dateStr = this.formatDateToString(currentDate);
       const isCurrentMonth = currentDate.getMonth() === month;
       const isPast = this.isDateInPast(dateStr, timezone);
       const isToday = this.isDateToday(dateStr, timezone);
@@ -159,6 +183,24 @@ export class TimezoneManager {
       const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
         timeZoneName: 'long'
+      });
+      
+      const parts = formatter.formatToParts(new Date());
+      const timeZonePart = parts.find(part => part.type === 'timeZoneName');
+      return timeZonePart?.value || timezone;
+    } catch {
+      return timezone;
+    }
+  }
+
+  /**
+   * Get timezone abbreviation
+   */
+  static getTimezoneAbbreviation(timezone: string): string {
+    try {
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        timeZoneName: 'short'
       });
       
       const parts = formatter.formatToParts(new Date());

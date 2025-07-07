@@ -27,6 +27,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [filteredTimeSlots, setFilteredTimeSlots] = useState<TimeSlot[]>([]);
   const [rateGroups, setRateGroups] = useState<RateGroup[]>([]);
   const [rateGroupSelections, setRateGroupSelections] = useState<RateGroupSelection[]>([]);
   const [customForm, setCustomForm] = useState<CustomForm | null>(null);
@@ -125,11 +126,21 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     }
   }, [selectedDate, packageData]);
 
+  // Filter time slots based on timezone and current time
+  useEffect(() => {
+    if (timeSlots.length > 0 && selectedDate && packageData) {
+      const filtered = TimezoneManager.filterFutureSlots(timeSlots, selectedDate, packageTimezone);
+      setFilteredTimeSlots(filtered);
+    } else {
+      setFilteredTimeSlots([]);
+    }
+  }, [timeSlots, selectedDate, packageData, packageTimezone]);
+
   // Fetch rate groups based on custom rates logic
   useEffect(() => {
-    if (selectedDate && packageData && timeSlots.length > 0) {
+    if (selectedDate && packageData && filteredTimeSlots.length > 0) {
       // Check if any slot has custom_rate > 0
-      const hasCustomRates = timeSlots.some(slot => slot.custom_rate > 0);
+      const hasCustomRates = filteredTimeSlots.some(slot => slot.custom_rate > 0);
       setHasCustomRatesInSlots(hasCustomRates);
       
       // If no custom rates in any slot, fetch rate groups immediately
@@ -143,7 +154,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         }
       }
     }
-  }, [timeSlots, selectedDate, packageData]);
+  }, [filteredTimeSlots, selectedDate, packageData]);
 
   // Fetch rate groups when slot is selected (only if custom rates exist)
   useEffect(() => {
@@ -155,6 +166,8 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const fetchTimeSlots = async () => {
     try {
       setSlotsLoading(true);
+      console.log('Fetching time slots for date:', selectedDate); // Debug log
+      
       const response = await api.post<TimeSlotsResponse>(`/time-slots/${resolvedParams.tenantId}/${resolvedParams.packageId}`, {
         date: selectedDate
       });
@@ -416,9 +429,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const getAvailableSeats = () => {
     if (hasCustomRatesInSlots && selectedSlot) {
       return selectedSlot.seats;
-    } else if (!hasCustomRatesInSlots && timeSlots.length > 0) {
+    } else if (!hasCustomRatesInSlots && filteredTimeSlots.length > 0) {
       // For date-based booking, use the maximum available seats from all open slots
-      const openSlots = timeSlots.filter(slot => slot.bookable_status === 'Open');
+      const openSlots = filteredTimeSlots.filter(slot => slot.bookable_status === 'Open');
       return openSlots.length > 0 ? Math.max(...openSlots.map(slot => slot.seats)) : 0;
     }
     return 0;
@@ -592,7 +605,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                     </svg>
-                    {TimezoneManager.getTimezoneDisplayName(packageTimezone)}
+                    {TimezoneManager.getTimezoneAbbreviation(packageTimezone)}
                   </span>
                 )}
               </div>
@@ -684,74 +697,96 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
           {/* Time Slots Section */}
           <div className="bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Available Time Slots</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Available Time Slots</h2>
+              {TimezoneManager.isDateToday(selectedDate, packageTimezone) && (
+                <div className="text-right">
+                  <p className="text-xs text-gray-500">Current time</p>
+                  <p className="text-sm font-medium text-blue-600">
+                    {TimezoneManager.getCurrentTimeString(packageTimezone)} {TimezoneManager.getTimezoneAbbreviation(packageTimezone)}
+                  </p>
+                </div>
+              )}
+            </div>
             
             {slotsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 <span className="ml-3 text-gray-600">Loading time slots...</span>
               </div>
-            ) : timeSlots.length === 0 ? (
+            ) : filteredTimeSlots.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p className="text-lg font-medium">No time slots available</p>
-                <p className="text-sm">Please select a different date</p>
+                <p className="text-sm">
+                  {TimezoneManager.isDateToday(selectedDate, packageTimezone) 
+                    ? 'All slots for today have passed or are closed'
+                    : 'Please select a different date'
+                  }
+                </p>
               </div>
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {timeSlots.map((slot) => (
-                  <button
-                    key={slot.id}
-                    onClick={() => handleSlotSelect(slot)}
-                    disabled={slot.bookable_status === 'Closed'}
-                    className={`
-                      w-full p-4 rounded-lg border-2 transition-all duration-200 text-left
-                      ${slot.bookable_status === 'Closed'
-                        ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                        : selectedSlot?.id === slot.id
-                          ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-lg'
-                          : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md'
-                      }
-                    `}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="font-bold text-lg">{slot.time}</p>
-                        <p className="text-sm">
-                          {slot.bookable_status === 'Open' 
-                            ? `${slot.seats} seats available`
-                            : 'Fully booked'
-                          }
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        {slot.custom_rate > 0 && (
-                          <p className="text-lg font-bold text-green-600">
-                            Custom Rate
+                {filteredTimeSlots.map((slot) => {
+                  const isSlotInPast = TimezoneManager.isDateToday(selectedDate, packageTimezone) && 
+                                      TimezoneManager.isTimeSlotInPast(slot.time, packageTimezone);
+                  
+                  return (
+                    <button
+                      key={slot.id}
+                      onClick={() => handleSlotSelect(slot)}
+                      disabled={slot.bookable_status === 'Closed' || isSlotInPast}
+                      className={`
+                        w-full p-4 rounded-lg border-2 transition-all duration-200 text-left
+                        ${slot.bookable_status === 'Closed' || isSlotInPast
+                          ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                          : selectedSlot?.id === slot.id
+                            ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-lg'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md'
+                        }
+                      `}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-bold text-lg">{slot.time}</p>
+                          <p className="text-sm">
+                            {slot.bookable_status === 'Open' && !isSlotInPast
+                              ? `${slot.seats} seats available`
+                              : isSlotInPast
+                                ? 'Time has passed'
+                                : 'Fully booked'
+                            }
                           </p>
-                        )}
-                        <span className={`
-                          inline-block px-3 py-1 rounded-full text-xs font-medium
-                          ${slot.bookable_status === 'Open'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                          }
-                        `}>
-                          {slot.bookable_status}
-                        </span>
+                        </div>
+                        <div className="text-right">
+                          {slot.custom_rate > 0 && (
+                            <p className="text-lg font-bold text-green-600">
+                              Custom Rate
+                            </p>
+                          )}
+                          <span className={`
+                            inline-block px-3 py-1 rounded-full text-xs font-medium
+                            ${slot.bookable_status === 'Open' && !isSlotInPast
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                            }
+                          `}>
+                            {isSlotInPast ? 'Past' : slot.bookable_status}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
 
         {/* Rate Groups Section */}
-        {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && timeSlots.length > 0)) && rateGroups.length > 0 && (
+        {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && filteredTimeSlots.length > 0)) && rateGroups.length > 0 && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold text-gray-900">Select Guests</h3>
@@ -897,7 +932,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         )}
 
         {/* Booking Summary */}
-        {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && timeSlots.length > 0)) && getTotalGuests() > 0 && (
+        {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && filteredTimeSlots.length > 0)) && getTotalGuests() > 0 && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Booking Summary</h3>
             
