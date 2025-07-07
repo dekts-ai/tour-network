@@ -24,6 +24,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const resolvedParams = use(params);
   const [packageData, setPackageData] = useState<PackageWithTenant | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [rateGroups, setRateGroups] = useState<RateGroup[]>([]);
   const [rateGroupSelections, setRateGroupSelections] = useState<RateGroupSelection[]>([]);
@@ -43,8 +44,12 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
   // Initialize with current date
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    setSelectedDate(today);
+    const today = new Date();
+    const todayStr = today.getFullYear() + '-' + 
+      String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(today.getDate()).padStart(2, '0');
+    setSelectedDate(todayStr);
+    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
   }, []);
 
   // Fetch package details
@@ -426,23 +431,28 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const generateCalendarDays = () => {
-    const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
     
-    const firstDay = new Date(currentYear, currentMonth, 1);
-    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
     const days = [];
     const currentDate = new Date(startDate);
+    const today = new Date();
     
     for (let i = 0; i < 42; i++) {
-      const dateStr = currentDate.toISOString().split('T')[0];
-      const isCurrentMonth = currentDate.getMonth() === currentMonth;
-      const isPast = currentDate < today;
-      const isToday = dateStr === today.toISOString().split('T')[0];
+      const dateStr = currentDate.getFullYear() + '-' + 
+        String(currentDate.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(currentDate.getDate()).padStart(2, '0');
+      
+      const isCurrentMonth = currentDate.getMonth() === month;
+      const isPast = currentDate < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const isToday = dateStr === (today.getFullYear() + '-' + 
+        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(today.getDate()).padStart(2, '0'));
       const isSelected = dateStr === selectedDate;
       
       days.push({
@@ -461,8 +471,18 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     return days;
   };
 
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const newMonth = new Date(currentMonth);
+    if (direction === 'prev') {
+      newMonth.setMonth(newMonth.getMonth() - 1);
+    } else {
+      newMonth.setMonth(newMonth.getMonth() + 1);
+    }
+    setCurrentMonth(newMonth);
+  };
+
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = new Date(dateStr + 'T00:00:00');
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -505,6 +525,10 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     }
   };
 
+  const handleDateSelect = (dateStr: string) => {
+    setSelectedDate(dateStr);
+  };
+
   const handleBooking = () => {
     const totalGuests = getTotalGuests();
     if (selectedSlot && totalGuests > 0) {
@@ -542,7 +566,6 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
-  const today = new Date();
   const visibleAddOnFields = customForm ? FormFieldManager.getVisibleFields(customForm.form_fields) : [];
 
   return (
@@ -614,10 +637,28 @@ export default function SchedulePage({ params }: SchedulePageProps) {
             
             {/* Calendar Header */}
             <div className="bg-gray-50 rounded-lg p-6 mb-6">
-              <div className="text-center mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={() => navigateMonth('prev')}
+                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                
                 <h3 className="text-xl font-semibold text-gray-900">
-                  {monthNames[today.getMonth()]} {today.getFullYear()}
+                  {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </h3>
+                
+                <button
+                  onClick={() => navigateMonth('next')}
+                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
               </div>
               
               {/* Days of week */}
@@ -634,7 +675,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                 {calendarDays.map((day, index) => (
                   <button
                     key={index}
-                    onClick={() => !day.isPast && day.isCurrentMonth && setSelectedDate(day.dateStr)}
+                    onClick={() => !day.isPast && day.isCurrentMonth && handleDateSelect(day.dateStr)}
                     disabled={day.isPast || !day.isCurrentMonth}
                     className={`
                       p-3 text-sm rounded-lg transition-all duration-200 font-medium
