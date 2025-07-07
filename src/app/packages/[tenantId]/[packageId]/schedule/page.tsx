@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Package, PackageDetailsResponse, TimeSlot, TimeSlotsResponse, RateGroup, RateGroupsResponse, RateGroupSelection, CustomFormResponse, CustomForm, FormField, AddOnSelection, PromoCode, PromoCodeResponse, PromoCodeRequest } from '@/types/package';
 import { FormFieldManager } from '@/utils/formUtils';
+import { TimezoneManager } from '@/utils/timezoneUtils';
 import AddOnField from '@/components/AddOnField';
 import PromoCodeSection from '@/components/PromoCodeSection';
 import api from '@/services/api';
@@ -42,15 +43,17 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [hasCustomRatesInSlots, setHasCustomRatesInSlots] = useState(false);
   const [rateGroupCommission, setRateGroupCommission] = useState<number | null>(null);
 
-  // Initialize with current date
+  // Get the timezone for this package
+  const packageTimezone = TimezoneManager.getPackageTimezone(packageData?.timezone);
+
+  // Initialize with current date in package timezone
   useEffect(() => {
-    const today = new Date();
-    const todayStr = today.getFullYear() + '-' + 
-      String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-      String(today.getDate()).padStart(2, '0');
-    setSelectedDate(todayStr);
-    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
-  }, []);
+    if (packageData) {
+      const todayStr = TimezoneManager.getTodayString(packageTimezone);
+      setSelectedDate(todayStr);
+      setCurrentMonth(TimezoneManager.getCurrentMonth(packageTimezone));
+    }
+  }, [packageData, packageTimezone]);
 
   // Fetch package details
   useEffect(() => {
@@ -431,44 +434,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const generateCalendarDays = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
+    if (!packageData) return [];
     
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay());
-    
-    const days = [];
-    const currentDate = new Date(startDate);
-    const today = new Date();
-    
-    for (let i = 0; i < 42; i++) {
-      const dateStr = currentDate.getFullYear() + '-' + 
-        String(currentDate.getMonth() + 1).padStart(2, '0') + '-' + 
-        String(currentDate.getDate()).padStart(2, '0');
-      
-      const isCurrentMonth = currentDate.getMonth() === month;
-      const isPast = currentDate < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const isToday = dateStr === (today.getFullYear() + '-' + 
-        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-        String(today.getDate()).padStart(2, '0'));
-      const isSelected = dateStr === selectedDate;
-      
-      days.push({
-        date: new Date(currentDate),
-        dateStr,
-        isCurrentMonth,
-        isPast,
-        isToday,
-        isSelected,
-        day: currentDate.getDate()
-      });
-      
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    return days;
+    return TimezoneManager.generateCalendarDays(currentMonth, selectedDate, packageTimezone);
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -482,13 +450,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    if (!packageData) return dateStr;
+    
+    return TimezoneManager.formatDateForDisplay(dateStr, packageTimezone);
   };
 
   const formatDuration = (hours: number, minutes: number) => {
@@ -623,6 +587,14 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                   </svg>
                   {formatGroupSize(packageData.min_pax_allowed, packageData.max_pax_allowed)}
                 </span>
+                {packageData.timezone && (
+                  <span className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                    </svg>
+                    {TimezoneManager.getTimezoneDisplayName(packageTimezone)}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -701,6 +673,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
               <div className="bg-blue-50 rounded-lg p-6">
                 <p className="text-sm text-blue-600 font-medium mb-1">Selected Date:</p>
                 <p className="text-blue-800 font-bold text-lg">{formatDate(selectedDate)}</p>
+                {packageData.timezone && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    Timezone: {TimezoneManager.getTimezoneDisplayName(packageTimezone)}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -951,6 +928,12 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                     <span className="text-gray-600">Total Guests:</span>
                     <span className="font-medium">{getTotalGuests()}</span>
                   </div>
+                  {packageData.timezone && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Timezone:</span>
+                      <span className="font-medium">{TimezoneManager.getTimezoneDisplayName(packageTimezone)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               

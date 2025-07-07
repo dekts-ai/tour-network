@@ -60,6 +60,7 @@ export interface Package {
   package_colour: string;
   has_contacts: number;
   expire_in_days: number;
+  timezone?: string; // Added timezone field
   created_at: string;
   created_by: number;
   created_by_user_type: string;
