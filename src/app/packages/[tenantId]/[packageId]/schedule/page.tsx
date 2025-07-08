@@ -32,6 +32,8 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [filteredTimeSlots, setFilteredTimeSlots] = useState<TimeSlot[]>([]);
   const [rateGroups, setRateGroups] = useState<RateGroup[]>([]);
   const [rateGroupSelections, setRateGroupSelections] = useState<RateGroupSelection[]>([]);
+  const [selectedGroupSize, setSelectedGroupSize] = useState<number>(0);
+  const [groupRateOptions, setGroupRateOptions] = useState<{id: number, rate_for: string, min_size: number, max_size: number, rate: string, tax: string}[]>([]);
   const [customForm, setCustomForm] = useState<CustomForm | null>(null);
   const [addOnSelections, setAddOnSelections] = useState<{ [key: string]: any }>({});
   const [appliedPromoCode, setAppliedPromoCode] = useState<PromoCode | null>(null);
@@ -205,15 +207,24 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       if (response.data.code === 200) {
         setRateGroups(response.data.data.rate_groups);
         setRateGroupCommission(response.data.data.service_commission_percentage);
-        // Initialize rate group selections with 0 quantity
-        const initialSelections = response.data.data.rate_groups.map(rateGroup => ({
-          rateGroup,
-          quantity: 0,
-          subtotal: 0,
-          commission: 0,
-          total: 0
-        }));
-        setRateGroupSelections(initialSelections);
+        
+        // Check if this is a group rate package
+        if (packageData.is_group_rate_enabled === 1) {
+          // Process group rate data
+          const groupOptions = processGroupRateData(response.data.data.rate_groups);
+          setGroupRateOptions(groupOptions);
+          setSelectedGroupSize(0);
+        } else {
+          // Initialize rate group selections with 0 quantity for regular packages
+          const initialSelections = response.data.data.rate_groups.map(rateGroup => ({
+            rateGroup,
+            quantity: 0,
+            subtotal: 0,
+            commission: 0,
+            total: 0
+          }));
+          setRateGroupSelections(initialSelections);
+        }
       }
     } catch (error) {
       console.error('Error fetching rate groups:', error);
@@ -287,7 +298,76 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     return { subtotal, commission, total };
   };
 
+  const processGroupRateData = (rateGroups: RateGroup[]) => {
+    // Group by rate_for and find min/max sizes for each group
+    const groupMap = new Map();
+    
+    rateGroups.forEach(rateGroup => {
+      const key = `${rateGroup.id}-${rateGroup.rate_for}`;
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          id: rateGroup.id,
+          rate_for: rateGroup.rate_for,
+          rate: rateGroup.rate,
+          tax: rateGroup.tax,
+          sizes: []
+        });
+      }
+      groupMap.get(key).sizes.push(rateGroup.size || 1);
+    });
+    
+    // Convert to array and calculate min/max for each group
+    return Array.from(groupMap.values()).map(group => ({
+      id: group.id,
+      rate_for: group.rate_for,
+      rate: group.rate,
+      tax: group.tax,
+      min_size: Math.min(...group.sizes),
+      max_size: Math.max(...group.sizes)
+    }));
+  };
+
+  const handleGroupSizeChange = (size: number) => {
+    setSelectedGroupSize(size);
+    
+    // Find the appropriate rate group for this size
+    const applicableGroup = groupRateOptions.find(group => 
+      size >= group.min_size && size <= group.max_size
+    );
+    
+    if (applicableGroup && packageData) {
+      const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+      const rate = parseFloat(applicableGroup.rate);
+      const tax = parseFloat(applicableGroup.tax);
+      
+      // For group rates, the rate is for the entire group, not per person
+      const subtotal = rate + tax;
+      const commission = roundout((subtotal * serviceCommissionPercentage) / 100);
+      const total = subtotal + commission;
+      
+      // Create a single rate group selection for the group
+      const groupSelection: RateGroupSelection = {
+        rateGroup: {
+          ...rateGroups.find(rg => rg.id === applicableGroup.id && (rg.size || 1) === size) || rateGroups[0],
+          rate: applicableGroup.rate,
+          tax: applicableGroup.tax
+        },
+        quantity: 1, // Always 1 for group bookings
+        subtotal,
+        commission,
+        total
+      };
+      
+      setRateGroupSelections([groupSelection]);
+    } else {
+      setRateGroupSelections([]);
+    }
+  };
+
   const updateRateGroupQuantity = (index: number, newQuantity: number) => {
+    // Skip for group rate packages
+    if (packageData?.is_group_rate_enabled === 1) return;
+    
     if (newQuantity < 0 || !packageData) return;
     
     // Get current total guests excluding this rate group
@@ -324,6 +404,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const getTotalGuests = () => {
+    if (packageData?.is_group_rate_enabled === 1) {
+      return selectedGroupSize;
+    }
     return rateGroupSelections.reduce((total, selection) => total + selection.quantity, 0);
   };
 

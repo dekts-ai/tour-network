@@ -131,6 +131,7 @@ export interface RateGroup {
   max_group_size: number;
   processing_fee: string;
   tax: string;
+  size?: number; // For group rate packages
 }
 
 export interface RateGroupsResponse {
