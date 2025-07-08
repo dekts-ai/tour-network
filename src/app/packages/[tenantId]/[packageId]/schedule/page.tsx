@@ -33,6 +33,8 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [rateGroups, setRateGroups] = useState<RateGroup[]>([]);
   const [rateGroupSelections, setRateGroupSelections] = useState<RateGroupSelection[]>([]);
   const [selectedGroupSize, setSelectedGroupSize] = useState<number>(0);
+  const [groupRateOptions, setGroupRateOptions] = useState<{ [key: string]: RateGroup[] }>({});
+  const [selectedGroupSize, setSelectedGroupSize] = useState<number>(0);
   const [groupRateOptions, setGroupRateOptions] = useState<{id: number, rate_for: string, min_size: number, max_size: number, rate: string, tax: string}[]>([]);
   const [customForm, setCustomForm] = useState<CustomForm | null>(null);
   const [addOnSelections, setAddOnSelections] = useState<{ [key: string]: any }>({});
@@ -210,12 +212,28 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         
         // Check if this is a group rate package
         if (packageData.is_group_rate_enabled === 1) {
-          // Process group rate data
-          const groupOptions = processGroupRateData(response.data.data.rate_groups);
-          setGroupRateOptions(groupOptions);
+          // Group rate groups by rate_for to create dropdown options
+          const groupedRates: { [key: string]: RateGroup[] } = {};
+          response.data.data.rate_groups.forEach(rateGroup => {
+            if (!groupedRates[rateGroup.rate_for]) {
+              groupedRates[rateGroup.rate_for] = [];
+            }
+            groupedRates[rateGroup.rate_for].push(rateGroup);
+          });
+          setGroupRateOptions(groupedRates);
           setSelectedGroupSize(0);
+          setRateGroupSelections([]);
         } else {
           // Initialize rate group selections with 0 quantity for regular packages
+          const initialSelections = response.data.data.rate_groups.map(rateGroup => ({
+            rateGroup,
+            quantity: 0,
+            subtotal: 0,
+            commission: 0,
+            total: 0
+          }));
+          setRateGroupSelections(initialSelections);
+        }
           const initialSelections = response.data.data.rate_groups.map(rateGroup => ({
             rateGroup,
             quantity: 0,
@@ -396,6 +414,64 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     setRateGroupSelections(updatedSelections);
   };
 
+  const updateGroupSize = (newSize: number) => {
+    if (newSize < 0 || !packageData) return;
+    
+    // Check if new size would exceed available seats
+    const availableSeats = getAvailableSeats();
+    if (newSize > availableSeats) {
+      return; // Don't allow the update
+    }
+    
+    setSelectedGroupSize(newSize);
+    
+    if (newSize === 0) {
+      setRateGroupSelections([]);
+      return;
+    }
+    
+    // Find the appropriate rate group for this size
+    let selectedRateGroup: RateGroup | null = null;
+    
+    for (const [rateFor, rateGroupList] of Object.entries(groupRateOptions)) {
+      const rateGroupForSize = rateGroupList.find(rg => rg.size === newSize);
+      if (rateGroupForSize) {
+        selectedRateGroup = rateGroupForSize;
+        break;
+      }
+    }
+    
+    if (selectedRateGroup) {
+      const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+      const pricing = calculateGroupRatePricing(selectedRateGroup, serviceCommissionPercentage);
+      
+      setRateGroupSelections([{
+        rateGroup: selectedRateGroup,
+        quantity: 1, // Always 1 for group rates (represents one group)
+        ...pricing
+      }]);
+    }
+  };
+
+  const calculateGroupRatePricing = (rateGroup: RateGroup, serviceCommissionPercentage: number) => {
+    const rate = parseFloat(rateGroup.rate);
+    const tax = parseFloat(rateGroup.tax || '0');
+    const permitFee = parseFloat(rateGroup.permit_fee || '0');
+    const additionalCharge = parseFloat(rateGroup.additional_charge || '0');
+    const partnerFeeAmount = parseFloat(rateGroup.partner_fee_amount || '0');
+    
+    // Calculate subtotal for the group
+    const subtotal = rate + tax + permitFee + additionalCharge + partnerFeeAmount;
+    
+    // Calculate commission based on subtotal
+    const commission = roundout((subtotal * serviceCommissionPercentage) / 100);
+    
+    // Calculate total
+    const total = subtotal + commission;
+    
+    return { subtotal, commission, total };
+  };
+
   const updateAddOnSelection = (fieldId: string, value: any) => {
     setAddOnSelections(prev => ({
       ...prev,
@@ -404,6 +480,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const getTotalGuests = () => {
+    if (packageData?.is_group_rate_enabled === 1) {
+      return selectedGroupSize;
+    }
     if (packageData?.is_group_rate_enabled === 1) {
       return selectedGroupSize;
     }
@@ -527,8 +606,40 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const canIncreaseQuantity = (currentQuantity: number) => {
+    if (packageData?.is_group_rate_enabled === 1) {
+      return selectedGroupSize + 1 <= getAvailableSeats();
+    }
     const totalOtherGuests = getTotalGuests() - currentQuantity;
     return totalOtherGuests + currentQuantity + 1 <= getAvailableSeats();
+  };
+
+  const canIncreaseGroupSize = () => {
+    return selectedGroupSize + 1 <= getAvailableSeats();
+  };
+
+  const getGroupSizeOptions = () => {
+    const options: { size: number; rateFor: string; rate: string }[] = [];
+    const availableSeats = getAvailableSeats();
+    
+    for (const [rateFor, rateGroupList] of Object.entries(groupRateOptions)) {
+      // Get unique sizes for this rate group, filtered by available seats
+      const uniqueSizes = [...new Set(rateGroupList.map(rg => rg.size))]
+        .filter(size => size && size <= availableSeats)
+        .sort((a, b) => a - b);
+      
+      uniqueSizes.forEach(size => {
+        const rateGroup = rateGroupList.find(rg => rg.size === size);
+        if (rateGroup) {
+          options.push({
+            size,
+            rateFor,
+            rate: rateGroup.rate
+          });
+        }
+      });
+    }
+    
+    return options.sort((a, b) => a.size - b.size);
   };
 
   const generateCalendarDays = () => {
@@ -879,10 +990,12 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         </div>
 
         {/* Rate Groups Section */}
-        {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && filteredTimeSlots.length > 0)) && rateGroups.length > 0 && (
+        {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && filteredTimeSlots.length > 0)) && (rateGroups.length > 0 || Object.keys(groupRateOptions).length > 0) && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-900">Select Guests</h3>
+              <h3 className="text-2xl font-bold text-gray-900">
+                {packageData?.is_group_rate_enabled === 1 ? 'Select Group Size' : 'Select Guests'}
+              </h3>
               <div className="text-right">
                 <p className="text-sm text-gray-600">Available Seats</p>
                 <p className="text-2xl font-bold text-green-600">{getAvailableSeats()}</p>
@@ -901,27 +1014,42 @@ export default function SchedulePage({ params }: SchedulePageProps) {
               </div>
             ) : (
               <div className="space-y-6">
-                {rateGroupSelections.map((selection, index) => (
-                  <div key={selection.rateGroup.id} className="border border-gray-200 rounded-lg p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h4 className="text-lg font-semibold text-gray-900">{selection.rateGroup.rate_for}</h4>
-                        <p className="text-sm text-gray-600">
-                          ${parseFloat(selection.rateGroup.rate).toFixed(2)} per person
-                          {parseFloat(selection.rateGroup.permit_fee) > 0 && (
-                            <span> + ${parseFloat(selection.rateGroup.permit_fee).toFixed(2)} permit fee</span>
-                          )}
-                          {parseFloat(selection.rateGroup.additional_charge) > 0 && (
-                            <span> + ${parseFloat(selection.rateGroup.additional_charge).toFixed(2)} additional charge</span>
-                          )}
-                        </p>
+                {packageData?.is_group_rate_enabled === 1 ? (
+                  /* Group Rate Selection */
+                  <div className="border border-gray-200 rounded-lg p-6">
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Select Number of People</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.entries(groupRateOptions).map(([rateFor, rateGroupList]) => {
+                          const firstRate = rateGroupList[0];
+                          const minSize = Math.min(...rateGroupList.map(rg => rg.size || 0));
+                          const maxSize = Math.max(...rateGroupList.map(rg => rg.size || 0));
+                          
+                          return (
+                            <div key={rateFor} className="bg-blue-50 rounded-lg p-4">
+                              <h5 className="font-medium text-blue-900 mb-2">{rateFor}</h5>
+                              <p className="text-sm text-blue-700 mb-2">
+                                ${parseFloat(firstRate.rate).toFixed(2)} per group
+                                {parseFloat(firstRate.tax || '0') > 0 && (
+                                  <span> + ${parseFloat(firstRate.tax).toFixed(2)} tax</span>
+                                )}
+                              </p>
+                              <p className="text-xs text-blue-600">
+                                Group size: {minSize} to {maxSize} people
+                              </p>
+                            </div>
+                          );
+                        })}
                       </div>
-                      
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
+                        <label className="text-sm font-medium text-gray-700">Number of People:</label>
                         <div className="flex items-center border border-gray-300 rounded-lg">
                           <button
-                            onClick={() => updateRateGroupQuantity(index, selection.quantity - 1)}
-                            disabled={selection.quantity === 0}
+                            onClick={() => updateGroupSize(selectedGroupSize - 1)}
+                            disabled={selectedGroupSize === 0}
                             className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-l-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -929,40 +1057,111 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                             </svg>
                           </button>
                           
-                          <div className="px-4 py-2 text-center min-w-[60px] border-l border-r border-gray-300">
-                            <span className="font-semibold text-lg">{selection.quantity}</span>
+                          <div className="px-4 py-2 text-center min-w-[80px] border-l border-r border-gray-300">
+                            <span className="font-semibold text-lg">{selectedGroupSize}</span>
                           </div>
                           
                           <button
-                            onClick={() => updateRateGroupQuantity(index, selection.quantity + 1)}
-                            disabled={!canIncreaseQuantity(selection.quantity)}
+                            onClick={() => updateGroupSize(selectedGroupSize + 1)}
+                            disabled={!canIncreaseGroupSize()}
                             className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-r-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            title={!canIncreaseQuantity(selection.quantity) ? 'No more seats available' : 'Add guest'}
+                            title={!canIncreaseGroupSize() ? 'No more seats available' : 'Add person'}
                           >
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                             </svg>
                           </button>
                         </div>
-                        
-                        {selection.quantity > 0 && (
-                          <div className="text-right">
-                            <p className="text-lg font-bold text-green-600">
-                              ${selection.total.toFixed(2)}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              ${selection.subtotal.toFixed(2)} + ${selection.commission.toFixed(2)} fees
-                            </p>
-                          </div>
-                        )}
                       </div>
+                      
+                      {selectedGroupSize > 0 && rateGroupSelections.length > 0 && (
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-green-600">
+                            ${rateGroupSelections[0].total.toFixed(2)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            ${rateGroupSelections[0].subtotal.toFixed(2)} + ${rateGroupSelections[0].commission.toFixed(2)} fees
+                          </p>
+                        </div>
+                      )}
                     </div>
                     
-                    {selection.rateGroup.description && (
-                      <p className="text-sm text-gray-600 mt-2">{selection.rateGroup.description}</p>
+                    {selectedGroupSize > 0 && (
+                      <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
+                        <p className="text-sm text-green-800">
+                          <span className="font-medium">Selected:</span> {selectedGroupSize} people
+                          {rateGroupSelections.length > 0 && (
+                            <span> - {rateGroupSelections[0].rateGroup.rate_for}</span>
+                          )}
+                        </p>
+                      </div>
                     )}
                   </div>
-                ))}
+                ) : (
+                  /* Regular Rate Group Selection */
+                  rateGroupSelections.map((selection, index) => (
+                    <div key={selection.rateGroup.id} className="border border-gray-200 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="text-lg font-semibold text-gray-900">{selection.rateGroup.rate_for}</h4>
+                          <p className="text-sm text-gray-600">
+                            ${parseFloat(selection.rateGroup.rate).toFixed(2)} per person
+                            {parseFloat(selection.rateGroup.permit_fee || '0') > 0 && (
+                              <span> + ${parseFloat(selection.rateGroup.permit_fee).toFixed(2)} permit fee</span>
+                            )}
+                            {parseFloat(selection.rateGroup.additional_charge || '0') > 0 && (
+                              <span> + ${parseFloat(selection.rateGroup.additional_charge).toFixed(2)} additional charge</span>
+                            )}
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center border border-gray-300 rounded-lg">
+                            <button
+                              onClick={() => updateRateGroupQuantity(index, selection.quantity - 1)}
+                              disabled={selection.quantity === 0}
+                              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-l-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                            
+                            <div className="px-4 py-2 text-center min-w-[60px] border-l border-r border-gray-300">
+                              <span className="font-semibold text-lg">{selection.quantity}</span>
+                            </div>
+                            
+                            <button
+                              onClick={() => updateRateGroupQuantity(index, selection.quantity + 1)}
+                              disabled={!canIncreaseQuantity(selection.quantity)}
+                              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-r-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              title={!canIncreaseQuantity(selection.quantity) ? 'No more seats available' : 'Add guest'}
+                            >
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </div>
+                          
+                          {selection.quantity > 0 && (
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-green-600">
+                                ${selection.total.toFixed(2)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                ${selection.subtotal.toFixed(2)} + ${selection.commission.toFixed(2)} fees
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {selection.rateGroup.description && (
+                        <p className="text-sm text-gray-600 mt-2">{selection.rateGroup.description}</p>
+                      )}
+                    </div>
+                  ))
+                )}
                 
                 {/* Seat Limit Warning */}
                 {getTotalGuests() >= getAvailableSeats() && getAvailableSeats() > 0 && (
@@ -1054,7 +1253,10 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Guests:</span>
-                    <span className="font-medium">{getTotalGuests()}</span>
+                    <span className="font-medium">
+                      {getTotalGuests()}
+                      {packageData?.is_group_rate_enabled === 1 && ' (Group Rate)'}
+                    </span>
                   </div>
                   {packageData.timezone && (
                     <div className="flex justify-between">
@@ -1073,16 +1275,29 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                 <div className="bg-blue-50 rounded-lg p-4 mb-4">
                   <h5 className="font-medium text-blue-900 mb-3">Tour Pricing</h5>
                   <div className="space-y-2">
-                    {rateGroupSelections
-                      .filter(selection => selection.quantity > 0)
-                      .map((selection, index) => (
-                        <div key={index} className="flex justify-between text-sm">
+                    {packageData?.is_group_rate_enabled === 1 ? (
+                      /* Group Rate Display */
+                      rateGroupSelections.length > 0 && (
+                        <div className="flex justify-between text-sm">
                           <span className="text-blue-700">
-                            {selection.quantity}x {selection.rateGroup.rate_for}
+                            Group of {selectedGroupSize} - {rateGroupSelections[0].rateGroup.rate_for}
                           </span>
-                          <span className="font-medium text-blue-800">${selection.subtotal.toFixed(2)}</span>
+                          <span className="font-medium text-blue-800">${rateGroupSelections[0].subtotal.toFixed(2)}</span>
                         </div>
-                      ))}
+                      )
+                    ) : (
+                      /* Regular Rate Groups Display */
+                      rateGroupSelections
+                        .filter(selection => selection.quantity > 0)
+                        .map((selection, index) => (
+                          <div key={index} className="flex justify-between text-sm">
+                            <span className="text-blue-700">
+                              {selection.quantity}x {selection.rateGroup.rate_for}
+                            </span>
+                            <span className="font-medium text-blue-800">${selection.subtotal.toFixed(2)}</span>
+                          </div>
+                        ))
+                    )}
 
                     <div className="text-sm font-medium pt-2 border-t border-blue-200 space-y-2">
                       {/* Promo Discount */}
