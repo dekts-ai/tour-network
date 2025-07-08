@@ -34,8 +34,6 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [rateGroupSelections, setRateGroupSelections] = useState<RateGroupSelection[]>([]);
   const [selectedGroupSize, setSelectedGroupSize] = useState<number>(0);
   const [groupRateOptions, setGroupRateOptions] = useState<{ [key: string]: RateGroup[] }>({});
-  const [selectedGroupSize, setSelectedGroupSize] = useState<number>(0);
-  const [groupRateOptions, setGroupRateOptions] = useState<{id: number, rate_for: string, min_size: number, max_size: number, rate: string, tax: string}[]>([]);
   const [customForm, setCustomForm] = useState<CustomForm | null>(null);
   const [addOnSelections, setAddOnSelections] = useState<{ [key: string]: any }>({});
   const [appliedPromoCode, setAppliedPromoCode] = useState<PromoCode | null>(null);
@@ -225,15 +223,6 @@ export default function SchedulePage({ params }: SchedulePageProps) {
           setRateGroupSelections([]);
         } else {
           // Initialize rate group selections with 0 quantity for regular packages
-          const initialSelections = response.data.data.rate_groups.map(rateGroup => ({
-            rateGroup,
-            quantity: 0,
-            subtotal: 0,
-            commission: 0,
-            total: 0
-          }));
-          setRateGroupSelections(initialSelections);
-        }
           const initialSelections = response.data.data.rate_groups.map(rateGroup => ({
             rateGroup,
             quantity: 0,
@@ -480,9 +469,6 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const getTotalGuests = () => {
-    if (packageData?.is_group_rate_enabled === 1) {
-      return selectedGroupSize;
-    }
     if (packageData?.is_group_rate_enabled === 1) {
       return selectedGroupSize;
     }
