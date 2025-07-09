@@ -30,8 +30,6 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [filteredTimeSlots, setFilteredTimeSlots] = useState<TimeSlot[]>([]);
-  const [rateGroups, setRateGroups] = useState<RateGroup[]>([]);
-  const [rateGroupSelections, setRateGroupSelections] = useState<RateGroupSelection[]>([]);
   const [selectedGroupSize, setSelectedGroupSize] = useState<number>(0);
   const [groupRateOptions, setGroupRateOptions] = useState<{ [key: string]: RateGroup[] }>({});
   const [customForm, setCustomForm] = useState<CustomForm | null>(null);
@@ -49,7 +47,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [rateGroupCommission, setRateGroupCommission] = useState<number | null>(null);
 
   // Get the timezone for this package
-  const packageTimezone = TimezoneManager.getPackageTimezone(packageData?.timezone);
+  const packageTimezone = packageData ? TimezoneManager.getPackageTimezone(packageData.timezone) : TimezoneManager.getPackageTimezone();
 
   // Initialize with current date in package timezone
   useEffect(() => {
@@ -209,7 +207,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         setRateGroupCommission(response.data.data.service_commission_percentage);
         
         // Check if this is a group rate package
-        if (packageData.is_group_rate_enabled === 1) {
+        if (packageData && packageData.is_group_rate_enabled === 1) {
           // Group rate groups by rate_for to create dropdown options
           const groupedRates: { [key: string]: RateGroup[] } = {};
           response.data.data.rate_groups.forEach(rateGroup => {
@@ -218,19 +216,10 @@ export default function SchedulePage({ params }: SchedulePageProps) {
             }
             groupedRates[rateGroup.rate_for].push(rateGroup);
           });
-          setGroupRateOptions(groupedRates);
+          setGroupRateOptions(processGroupRateData(response.data.data.rate_groups));
           setSelectedGroupSize(0);
           setRateGroupSelections([]);
         } else {
-          // Initialize rate group selections with 0 quantity for regular packages
-          const initialSelections = response.data.data.rate_groups.map(rateGroup => ({
-            rateGroup,
-            quantity: 0,
-            subtotal: 0,
-            commission: 0,
-            total: 0
-          }));
-          setRateGroupSelections(initialSelections);
         }
       }
     } catch (error) {
@@ -316,11 +305,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
           id: rateGroup.id,
           rate_for: rateGroup.rate_for,
           rate: rateGroup.rate,
-          tax: rateGroup.tax,
+          tax: rateGroup.tax || '0',
           sizes: []
         });
       }
-      groupMap.get(key).sizes.push(rateGroup.size || 1);
+      groupMap.get(key)!.sizes.push(rateGroup.size || 1);
     });
     
     // Convert to array and calculate min/max for each group
@@ -343,7 +332,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     );
     
     if (applicableGroup && packageData) {
-      const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+      const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage || '0');
       const rate = parseFloat(applicableGroup.rate);
       const tax = parseFloat(applicableGroup.tax);
       
@@ -355,9 +344,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       // Create a single rate group selection for the group
       const groupSelection: RateGroupSelection = {
         rateGroup: {
-          ...rateGroups.find(rg => rg.id === applicableGroup.id && (rg.size || 1) === size) || rateGroups[0],
+          ...rateGroups.find(rg => rg.id === applicableGroup.id && (rg.size || 1) === size) || rateGroups[0]!,
           rate: applicableGroup.rate,
-          tax: applicableGroup.tax
+          tax: applicableGroup.tax || '0'
         },
         quantity: 1, // Always 1 for group bookings
         subtotal,
@@ -390,7 +379,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     
     const updatedSelections = [...rateGroupSelections];
     const rateGroup = updatedSelections[index].rateGroup;
-    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage || '0');
     
     const pricing = calculatePricing(rateGroup, newQuantity, serviceCommissionPercentage);
     
@@ -422,8 +411,10 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     // Find the appropriate rate group for this size
     let selectedRateGroup: RateGroup | null = null;
     
-    for (const [rateFor, rateGroupList] of Object.entries(groupRateOptions)) {
-      const rateGroupForSize = rateGroupList.find(rg => rg.size === newSize);
+    for (const groupOption of groupRateOptions) {
+      const rateGroupForSize = rateGroups.find(rg => 
+        rg.id === groupOption.id && (rg.size || 1) === newSize
+      );
       if (rateGroupForSize) {
         selectedRateGroup = rateGroupForSize;
         break;
@@ -431,7 +422,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     }
     
     if (selectedRateGroup) {
-      const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+      const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage || '0');
       const pricing = calculateGroupRatePricing(selectedRateGroup, serviceCommissionPercentage);
       
       setRateGroupSelections([{
@@ -469,9 +460,6 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const getTotalGuests = () => {
-    if (packageData?.is_group_rate_enabled === 1) {
-      return selectedGroupSize;
-    }
     return rateGroupSelections.reduce((total, selection) => total + selection.quantity, 0);
   };
 
@@ -501,7 +489,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     if (!customForm || !packageData) return 0;
     
     const visibleFields = FormFieldManager.getVisibleFields(customForm.form_fields);
-    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage || '0');
     const totalGuests = getTotalGuests();
     
     return visibleFields.reduce((total, field) => {
@@ -529,7 +517,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     if (!customForm || !packageData) return 0;
     
     const visibleFields = FormFieldManager.getVisibleFields(customForm.form_fields);
-    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage || '0');
     const totalGuests = getTotalGuests();
     
     return visibleFields.reduce((total, field) => {
@@ -607,25 +595,26 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     const options: { size: number; rateFor: string; rate: string }[] = [];
     const availableSeats = getAvailableSeats();
     
-    for (const [rateFor, rateGroupList] of Object.entries(groupRateOptions)) {
+    for (const groupOption of groupRateOptions) {
       // Get unique sizes for this rate group, filtered by available seats
-      const uniqueSizes = [...new Set(rateGroupList.map(rg => rg.size))]
-        .filter(size => size && size <= availableSeats)
-        .sort((a, b) => a - b);
+      const relatedRateGroups = rateGroups.filter(rg => rg.id === groupOption.id);
+      const uniqueSizes = [...new Set(relatedRateGroups.map(rg => rg.size || 1))]
+        .filter(size => size <= availableSeats)
+        .sort((a, b) => (a || 0) - (b || 0));
       
       uniqueSizes.forEach(size => {
-        const rateGroup = rateGroupList.find(rg => rg.size === size);
+        const rateGroup = relatedRateGroups.find(rg => (rg.size || 1) === size);
         if (rateGroup) {
           options.push({
-            size,
-            rateFor,
+            size: size || 1,
+            rateFor: groupOption.rate_for,
             rate: rateGroup.rate
           });
         }
       });
     }
     
-    return options.sort((a, b) => a.size - b.size);
+    return options.sort((a, b) => (a.size || 0) - (b.size || 0));
   };
 
   const generateCalendarDays = () => {
@@ -1006,22 +995,22 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                     <div className="mb-6">
                       <h4 className="text-lg font-semibold text-gray-900 mb-4">Select Number of People</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.entries(groupRateOptions).map(([rateFor, rateGroupList]) => {
-                          const firstRate = rateGroupList[0];
-                          const minSize = Math.min(...rateGroupList.map(rg => rg.size || 0));
-                          const maxSize = Math.max(...rateGroupList.map(rg => rg.size || 0));
+                        {groupRateOptions.map((groupOption) => {
+                          const relatedRateGroups = rateGroups.filter(rg => rg.id === groupOption.id);
+                          const firstRate = relatedRateGroups[0];
+                          if (!firstRate) return null;
                           
                           return (
-                            <div key={rateFor} className="bg-blue-50 rounded-lg p-4">
-                              <h5 className="font-medium text-blue-900 mb-2">{rateFor}</h5>
+                            <div key={groupOption.id} className="bg-blue-50 rounded-lg p-4">
+                              <h5 className="font-medium text-blue-900 mb-2">{groupOption.rate_for}</h5>
                               <p className="text-sm text-blue-700 mb-2">
-                                ${parseFloat(firstRate.rate).toFixed(2)} per group
-                                {parseFloat(firstRate.tax || '0') > 0 && (
-                                  <span> + ${parseFloat(firstRate.tax).toFixed(2)} tax</span>
+                                ${parseFloat(groupOption.rate).toFixed(2)} per group
+                                {parseFloat(groupOption.tax || '0') > 0 && (
+                                  <span> + ${parseFloat(groupOption.tax).toFixed(2)} tax</span>
                                 )}
                               </p>
                               <p className="text-xs text-blue-600">
-                                Group size: {minSize} to {maxSize} people
+                                Group size: {groupOption.min_size} to {groupOption.max_size} people
                               </p>
                             </div>
                           );
@@ -1329,7 +1318,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                             value,
                             1,
                             getTotalGuests(),
-                            rateGroupCommission ?? parseFloat(packageData.service_commission_percentage)
+                            rateGroupCommission ?? parseFloat(packageData.service_commission_percentage || '0')
                           );
                           
                           return (
