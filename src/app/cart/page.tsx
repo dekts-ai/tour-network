@@ -13,13 +13,6 @@ export default function CartPage() {
     return TimezoneManager.formatDateForDisplay(dateStr, packageTimezone);
   };
 
-  const formatDuration = (hours: number, minutes: number) => {
-    if (hours === 0 && minutes === 0) return 'Flexible';
-    if (hours === 0) return `${minutes}m`;
-    if (minutes === 0) return `${hours}h`;
-    return `${hours}h ${minutes}m`;
-  };
-
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 py-12">

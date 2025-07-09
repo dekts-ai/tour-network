@@ -409,7 +409,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const getTourCommission = () => {
-    return rateGroupSelections.reduce((total, selection) => total + selection.commission, 0);
+    const commission = rateGroupSelections.reduce((total, selection) => total + selection.commission, 0);
+    console.log('Tour commission:', commission);
+    return NumberManager.roundout(commission);
   };
 
   const getPromoDiscount = () => {
@@ -478,7 +480,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         serviceCommissionPercentage
       );
       
-      return total + pricing.commission;
+      return NumberManager.roundout(total + pricing.commission);
     }, 0);
   };
 
@@ -491,11 +493,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const getTotalFees = () => {
-    return getTourCommission() + getAddOnCommission();
+    return NumberManager.roundout(getTourCommission() + getAddOnCommission());
   };
 
   const getTotalAmount = () => {
-    return getTotalSubtotal() + getTotalFees();
+    return NumberManager.roundout(getTotalSubtotal() + getTotalFees());
   };
 
   const getAvailableSeats = () => {

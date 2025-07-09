@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { CartItem, CustomerInfo } from '@/types/cart';
+import { NumberManager } from '@/utils/numberUtils';
 
 interface CartContextType {
   cartItems: CartItem[];
@@ -79,7 +80,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const getCartTotal = () => {
-    return cartItems.reduce((total, item) => total + item.pricing.totalAmount, 0);
+    const total = cartItems.reduce((total, item) => total + item.pricing.totalAmount, 0);
+    console.log('Cart total:', NumberManager.roundout(total));
+    return NumberManager.roundout(total);
   };
 
   const getCartItemCount = () => {

@@ -92,6 +92,8 @@ export default function CheckoutPage() {
         bookingDate: new Date().toISOString()
       };
 
+      console.log('Booking data:', bookingData);
+
       // Store booking data for thank you page
       if (typeof window !== 'undefined') {
         localStorage.setItem('completed_booking', JSON.stringify(bookingData));
