@@ -1,4 +1,5 @@
-import { FormField, FormFieldPriceInfo, AddOnSelection } from '@/types/package';
+import { FormField } from '@/types/package';
+import { NumberManager } from '@/utils/numberUtils';
 
 export class FormFieldManager {
   /**
@@ -114,20 +115,10 @@ export class FormFieldManager {
     }
 
     // Calculate commission based on subtotal
-    const commission = this.roundout((subtotal * serviceCommissionPercentage) / 100);
+    const commission = NumberManager.roundout((subtotal * serviceCommissionPercentage) / 100);
     const total = subtotal + commission;
 
     return { subtotal, commission, total };
-  }
-
-  /**
-   * Round up to 2 decimal places
-   */
-  static roundout(amount: number, places: number = 2): number {
-    if (places < 0) places = 0;
-    const x = Math.pow(10, places);
-    const formul = (amount * x).toFixed(10);
-    return (amount >= 0 ? Math.ceil(parseFloat(formul)) : Math.floor(parseFloat(formul))) / x;
   }
 
   /**

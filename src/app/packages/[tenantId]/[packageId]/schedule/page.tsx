@@ -11,6 +11,7 @@ import AddOnField from '@/components/AddOnField';
 import PromoCodeSection from '@/components/PromoCodeSection';
 import BookingActions from '@/components/BookingActions';
 import api from '@/services/api';
+import { NumberManager } from '@/utils/numberUtils';
 
 interface SchedulePageProps {
   params: Promise<{
@@ -292,7 +293,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     const subtotalPerPerson = rate + permitFee + additionalCharge + partnerFeeAmount;
     
     // Calculate commission per person based on subtotal
-    const commissionPerPerson = roundout((subtotalPerPerson * serviceCommissionPercentage) / 100);
+    const commissionPerPerson = NumberManager.roundout((subtotalPerPerson * serviceCommissionPercentage) / 100);
     
     // Calculate totals
     const subtotal = subtotalPerPerson * quantity;
@@ -313,7 +314,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     const subtotal = rate + tax + permitFee + additionalCharge + partnerFeeAmount;
     
     // Calculate commission based on subtotal
-    const commission = roundout((subtotal * serviceCommissionPercentage) / 100);
+    const commission = NumberManager.roundout((subtotal * serviceCommissionPercentage) / 100);
     
     // Calculate total
     const total = subtotal + commission;
@@ -495,13 +496,6 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
   const getTotalAmount = () => {
     return getTotalSubtotal() + getTotalFees();
-  };
-
-  const roundout = (amount: number, places: number = 2) => {
-    if (places < 0) places = 0;
-    const x = Math.pow(10, places);
-    const formul = (amount * x).toFixed(10);
-    return (amount >= 0 ? Math.ceil(parseFloat(formul)) : Math.floor(parseFloat(formul))) / x;
   };
 
   const getAvailableSeats = () => {
@@ -988,11 +982,14 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                           <h4 className="text-lg font-semibold text-gray-900">{selection.rateGroup.rate_for}</h4>
                           <p className="text-sm text-gray-600">
                             ${parseFloat(selection.rateGroup.rate).toFixed(2)} per person
-                            {parseFloat(selection.rateGroup.permit_fee || '0') > 0 && (
+                            {selection.rateGroup.permit_fee && parseFloat(selection.rateGroup.permit_fee) > 0 && (
                               <span> + ${parseFloat(selection.rateGroup.permit_fee).toFixed(2)} permit fee</span>
                             )}
-                            {parseFloat(selection.rateGroup.additional_charge || '0') > 0 && (
+                            {selection.rateGroup.additional_charge && parseFloat(selection.rateGroup.additional_charge) > 0 && (
                               <span> + ${parseFloat(selection.rateGroup.additional_charge).toFixed(2)} additional charge</span>
+                            )}
+                            {selection.rateGroup.partner_fee_amount && parseFloat(selection.rateGroup.partner_fee_amount) > 0 && (
+                              <span> + ${parseFloat(selection.rateGroup.partner_fee_amount).toFixed(2)} partner fee</span>
                             )}
                           </p>
                         </div>
