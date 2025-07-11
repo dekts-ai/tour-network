@@ -45,6 +45,7 @@ export default function CheckoutPage() {
       const response = await api.post('/create-payment-intent', {
         amount: Math.round(getCartTotal() * 100), // Convert to cents
         currency: 'usd',
+        serviceFees: Math.round(cartItems.reduce((sum, item) => sum + item.pricing.totalFees, 0) * 100), // Service fees in cents
         cartItems: cartItems,
         customerInfo: customerInfo
       });
