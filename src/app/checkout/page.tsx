@@ -50,6 +50,8 @@ export default function CheckoutPage() {
         amount: Math.round(getCartTotal() * 100), // Convert to cents
         currency: 'usd',
         serviceFees: Math.round(cartItems.reduce((sum, item) => sum + item.pricing.totalFees, 0) * 100), // Service fees in cents
+        tourFees: Math.round(cartItems.reduce((sum, item) => sum + item.pricing.tourSubtotal, 0) * 100), // Tour fees in cents
+        addOnsFees: Math.round(cartItems.reduce((sum, item) => sum + item.pricing.addOnSubtotal, 0) * 100), // Add-ons fees in cents
         cartItems: cartItems,
         customerInfo: customerInfo
       });
