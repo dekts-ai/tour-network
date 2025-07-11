@@ -298,6 +298,6 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
-  onPaymentSuccess: (paymentIntent: any) => Promise<void>;
+    </div>
   );
 }
