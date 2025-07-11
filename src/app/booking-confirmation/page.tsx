@@ -8,9 +8,11 @@ interface BookingData {
   cartItems: any[];
   customerInfo: any;
   totalAmount: number;
-  paymentMethod: string;
+  paymentIntentId: string;
   bookingId: string;
   bookingDate: string;
+  bookings?: any[];
+  serviceFees: number;
 }
 
 export default function BookingConfirmationPage() {
@@ -86,11 +88,10 @@ export default function BookingConfirmationPage() {
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Information</h3>
               <div className="space-y-2 text-gray-600">
-                <p><span className="font-medium">Payment Method:</span> {bookingData.paymentMethod}</p>
-                {bookingData.paymentIntentId && (
-                  <p><span className="font-medium">Payment ID:</span> {bookingData.paymentIntentId}</p>
-                )}
+                <p><span className="font-medium">Payment Method:</span> Credit Card</p>
+                <p><span className="font-medium">Payment ID:</span> {bookingData.paymentIntentId}</p>
                 <p><span className="font-medium">Total Amount:</span> <span className="text-green-600 font-bold">${bookingData.totalAmount.toFixed(2)}</span></p>
+                <p><span className="font-medium">Service Fees:</span> ${bookingData.serviceFees.toFixed(2)}</p>
                 <p><span className="font-medium">Booking Date:</span> {new Date(bookingData.bookingDate).toLocaleDateString()}</p>
               </div>
             </div>

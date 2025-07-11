@@ -42,7 +42,7 @@ const StripeCheckoutForm: React.FC<StripeCheckoutFormProps> = ({
       if (error) {
         setErrorMessage(error.message || 'An error occurred during payment');
       } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-        onPaymentSuccess(paymentIntent);
+        await onPaymentSuccess(paymentIntent);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'An unexpected error occurred');

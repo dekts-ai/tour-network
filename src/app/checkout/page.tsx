@@ -19,6 +19,7 @@ export default function CheckoutPage() {
   const [clientSecret, setClientSecret] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   useEffect(() => {
     // Check if customer info exists
@@ -34,8 +35,11 @@ export default function CheckoutPage() {
     }
 
     // Create payment intent
-    createPaymentIntent();
-  }, [cartItems, customerInfo, router]);
+    if (!hasInitialized) {
+      createPaymentIntent();
+      setHasInitialized(true);
+    }
+  }, [cartItems, customerInfo, router, hasInitialized]);
 
   const createPaymentIntent = async () => {
     try {
@@ -68,27 +72,56 @@ export default function CheckoutPage() {
     return TimezoneManager.formatDateForDisplay(dateStr, packageTimezone);
   };
 
-  const handlePaymentSuccess = (paymentIntent: any) => {
-    // Create booking data
-    const bookingData = {
-      cartItems,
-      customerInfo,
-      totalAmount: getCartTotal(),
-      paymentIntentId: paymentIntent.id,
-      bookingId: `TN-${Date.now()}`,
-      bookingDate: new Date().toISOString()
-    };
+  const handlePaymentSuccess = async (paymentIntent: any) => {
+    try {
+      // Prepare booking payload
+      const bookingPayload = {
+        paymentIntentId: paymentIntent.id,
+        customerInfo: customerInfo,
+        cartItems: cartItems.map(item => ({
+          packageId: item.packageId,
+          tenantId: item.tenantId,
+          packageName: item.packageName,
+          selectedDate: item.selectedDate,
+          selectedSlot: item.selectedSlot,
+          rateGroupSelections: item.rateGroupSelections,
+          addOnSelections: item.addOnSelections,
+          appliedPromoCode: item.appliedPromoCode,
+          pricing: item.pricing,
+          totalGuests: item.totalGuests
+        })),
+        totalAmount: getCartTotal(),
+        serviceFees: cartItems.reduce((sum, item) => sum + item.pricing.totalFees, 0),
+        bookingDate: new Date().toISOString()
+      };
 
-    // Store booking data for thank you page
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('completed_booking', JSON.stringify(bookingData));
+      // Call create-bookings API
+      const bookingResponse = await api.post('/create-bookings', bookingPayload);
+      
+      if (bookingResponse.data.code === 200) {
+        // Store booking data for thank you page
+        const bookingData = {
+          ...bookingPayload,
+          bookingId: bookingResponse.data.data.bookingId || `TN-${Date.now()}`,
+          bookings: bookingResponse.data.data.bookings || []
+        };
+        
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('completed_booking', JSON.stringify(bookingData));
+        }
+
+        // Clear cart
+        clearCart();
+
+        // Redirect to thank you page
+        router.push('/booking-confirmation');
+      } else {
+        throw new Error(bookingResponse.data.message || 'Failed to create booking');
+      }
+    } catch (err: any) {
+      console.error('Error creating booking:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to create booking. Please contact support.');
     }
-
-    // Clear cart
-    clearCart();
-
-    // Redirect to thank you page
-    router.push('/booking-confirmation');
   };
 
   if (cartItems.length === 0) {
@@ -265,6 +298,6 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
-    </div>
+  onPaymentSuccess: (paymentIntent: any) => Promise<void>;
   );
 }
