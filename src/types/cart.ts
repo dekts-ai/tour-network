@@ -15,6 +15,8 @@ export interface CartItem {
     totalSubtotal: number;
     totalFees: number;
     totalAmount: number;
+    tourFees: number;
+    addOnFees: number;
   };
   totalGuests: number;
   createdAt: string;

@@ -500,6 +500,14 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     return NumberManager.roundout(getTotalSubtotal() + getTotalFees());
   };
 
+  const getTourFees = () => {
+    return NumberManager.roundout(getTourCommission());
+  };
+
+  const getAddOnFees = () => {
+    return NumberManager.roundout(getAddOnCommission());
+  };
+
   const getAvailableSeats = () => {
     if (hasCustomRatesInSlots && selectedSlot) {
       return selectedSlot.seats;
@@ -627,7 +635,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         addOnSubtotal: getAddOnSubtotal(),
         totalSubtotal: getTotalSubtotal(),
         totalFees: getTotalFees(),
-        totalAmount: getTotalAmount()
+        totalAmount: getTotalAmount(),
+        tourFees: getTourFees(),
+        addOnFees: getAddOnFees()
       },
       totalGuests: getTotalGuests(),
       createdAt: new Date().toISOString()
