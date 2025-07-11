@@ -89,13 +89,15 @@ export default function CheckoutPage() {
           rateGroupSelections: item.rateGroupSelections,
           addOnSelections: item.addOnSelections,
           appliedPromoCode: item.appliedPromoCode,
-          pricing: item.pricing,
+          pricing: {
+            ...item.pricing,
+            tourFees: item.pricing.tourSubtotal - item.pricing.promoDiscount,
+            addOnFees: item.pricing.addOnSubtotal
+          },
           totalGuests: item.totalGuests
         })),
         totalAmount: getCartTotal(),
         serviceFees: cartItems.reduce((sum, item) => sum + item.pricing.totalFees, 0),
-        tourFees: cartItems.reduce((sum, item) => sum + (item.pricing.tourSubtotal - item.pricing.promoDiscount), 0),
-        addOnFees: cartItems.reduce((sum, item) => sum + item.pricing.addOnSubtotal, 0),
         bookingDate: new Date().toISOString()
       };
 
