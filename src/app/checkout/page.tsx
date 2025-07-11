@@ -50,14 +50,14 @@ export default function CheckoutPage() {
         customerInfo: customerInfo
       });
 
-      if (response.data.client_secret) {
-        setClientSecret(response.data.client_secret);
+      if (response.data.code === 200 && response.data.data.clientSecret) {
+        setClientSecret(response.data.data.clientSecret);
       } else {
         throw new Error('Failed to create payment intent');
       }
     } catch (err: any) {
       console.error('Error creating payment intent:', err);
-      setError(err.response?.data?.message || 'Failed to initialize payment. Please try again.');
+      setError(err.response?.data?.message || err.message || 'Failed to initialize payment. Please try again.');
     } finally {
       setIsLoading(false);
     }
