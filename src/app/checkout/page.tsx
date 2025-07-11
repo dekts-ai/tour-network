@@ -94,6 +94,8 @@ export default function CheckoutPage() {
         })),
         totalAmount: getCartTotal(),
         serviceFees: cartItems.reduce((sum, item) => sum + item.pricing.totalFees, 0),
+        tourFees: cartItems.reduce((sum, item) => sum + (item.pricing.tourSubtotal - item.pricing.promoDiscount), 0),
+        addOnFees: cartItems.reduce((sum, item) => sum + item.pricing.addOnSubtotal, 0),
         bookingDate: new Date().toISOString()
       };
 
