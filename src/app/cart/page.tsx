@@ -3,10 +3,11 @@
 import React from 'react';
 import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
+import CustomerInfoForm from '@/components/CustomerInfoForm';
 import { TimezoneManager } from '@/utils/timezoneUtils';
 
 export default function CartPage() {
-  const { cartItems, removeFromCart, getCartTotal, clearCart } = useCart();
+  const { cartItems, removeFromCart, getCartTotal, clearCart, customerInfo } = useCart();
 
   const formatDate = (dateStr: string, timezone?: string) => {
     const packageTimezone = TimezoneManager.getPackageTimezone(timezone);
@@ -173,7 +174,17 @@ export default function CartPage() {
 
               <Link 
                 href="/checkout"
-                className="block w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-semibold text-center hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className={`block w-full py-4 px-6 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-center ${
+                  customerInfo 
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700' 
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+                onClick={(e) => {
+                  if (!customerInfo) {
+                    e.preventDefault();
+                    alert('Please fill in your customer information first.');
+                  }
+                }}
               >
                 Proceed to Checkout
               </Link>
@@ -182,6 +193,11 @@ export default function CartPage() {
                 Secure checkout • SSL encrypted • Money-back guarantee
               </p>
             </div>
+          </div>
+
+          {/* Customer Information Form */}
+          <div className="lg:col-span-3 mt-8">
+            <CustomerInfoForm />
           </div>
         </div>
       </div>
