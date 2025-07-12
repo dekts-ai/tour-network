@@ -69,7 +69,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       try {
         setLoading(true);
         const response = await api.get<PackageDetailsResponse>(`/package/${resolvedParams.tenantId}/${resolvedParams.packageId}`);
-        
+
         if (response.data.code === 200) {
           const packageWithTenant: PackageWithTenant = {
             ...response.data.data.package,
@@ -96,18 +96,18 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       try {
         setCustomFormLoading(true);
         const response = await api.get<CustomFormResponse>(`/custom-form/${resolvedParams.tenantId}/${resolvedParams.packageId}`);
-        
+
         if (response.data.code === 200 && response.data.data?.custom_form) {
           setCustomForm(response.data.data.custom_form);
-          
+
           // Initialize add-on selections with default values
           const visibleFields = FormFieldManager.getVisibleFields(response.data.data.custom_form.form_fields);
           const initialSelections: { [key: string]: any } = {};
-          
+
           visibleFields.forEach(field => {
             initialSelections[field.id] = FormFieldManager.getDefaultValue(field);
           });
-          
+
           setAddOnSelections(initialSelections);
         }
       } catch (err) {
@@ -149,7 +149,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       // Check if any slot has custom_rate > 0
       const hasCustomRates = filteredTimeSlots.some(slot => slot.custom_rate > 0);
       setHasCustomRatesInSlots(hasCustomRates);
-      
+
       // If no custom rates in any slot, fetch rate groups immediately
       if (!hasCustomRates) {
         fetchRateGroups(false); // false = date-based, not slot-based
@@ -175,11 +175,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     try {
       setSlotsLoading(true);
       console.log('Fetching time slots for date:', selectedDate); // Debug log
-      
+
       const response = await api.post<TimeSlotsResponse>(`/time-slots/${resolvedParams.tenantId}/${resolvedParams.packageId}`, {
         date: selectedDate
       });
-      
+
       if (response.data.code === 200) {
         setTimeSlots(response.data.data.slots);
         // Reset selected slot when date changes
@@ -196,22 +196,22 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const fetchRateGroups = async (isSlotBased: boolean = false, slot?: TimeSlot) => {
     try {
       setRateGroupsLoading(true);
-      
+
       const requestData: any = {
         date: selectedDate
       };
-      
+
       // Add slot_id only if it's slot-based and slot has custom_rate > 0
       if (isSlotBased && slot && slot.custom_rate > 0) {
         requestData.slot_id = slot.id;
       }
-      
+
       const response = await api.post<RateGroupsResponse>(`/rate-groups/${resolvedParams.tenantId}/${resolvedParams.packageId}`, requestData);
-      
+
       if (response.data.code === 200) {
         setRateGroups(response.data.data.rate_groups);
         setRateGroupCommission(response.data.data.service_commission_percentage);
-        
+
         // Check if this is a group rate package
         if (packageData && packageData.is_group_rate_enabled === 1) {
           // For group rate packages, store all rate groups as options
@@ -244,21 +244,21 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     try {
       setPromoCodeLoading(true);
       setPromoCodeError(null);
-      
+
       const requestData: PromoCodeRequest = {
         coupon: code,
         date: selectedDate
       };
-      
+
       const response = await api.post<PromoCodeResponse>(`/set-coupon/${resolvedParams.tenantId}/${resolvedParams.packageId}`, requestData);
-      
+
       if (response.data.code === 200) {
         setAppliedPromoCode(response.data.data.coupon);
         setPromoCodeError(null);
       }
     } catch (error: any) {
       console.error('Error applying promo code:', error);
-      
+
       // Handle specific error codes
       if (error.response?.status === 410) {
         setPromoCodeError('Your coupon code is no longer valid.');
@@ -267,7 +267,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       } else {
         setPromoCodeError('Failed to apply promo code. Please try again.');
       }
-      
+
       setAppliedPromoCode(null);
     } finally {
       setPromoCodeLoading(false);
@@ -288,18 +288,18 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     const permitFee = parseFloat(rateGroup.permit_fee || '0');
     const additionalCharge = parseFloat(rateGroup.additional_charge || '0');
     const partnerFeeAmount = parseFloat(rateGroup.partner_fee_amount || '0');
-    
+
     // Calculate subtotal per person
     const subtotalPerPerson = rate + permitFee + additionalCharge + partnerFeeAmount;
-    
+
     // Calculate commission per person based on subtotal
     const commissionPerPerson = NumberManager.roundout((subtotalPerPerson * serviceCommissionPercentage) / 100);
-    
+
     // Calculate totals
     const subtotal = subtotalPerPerson * quantity;
     const commission = commissionPerPerson * quantity;
     const total = subtotal + commission;
-    
+
     return { subtotal, commission, total };
   };
 
@@ -309,45 +309,45 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     const permitFee = parseFloat(rateGroup.permit_fee || '0');
     const additionalCharge = parseFloat(rateGroup.additional_charge || '0');
     const partnerFeeAmount = parseFloat(rateGroup.partner_fee_amount || '0');
-    
+
     // Calculate subtotal for the group
     const subtotal = rate + tax + permitFee + additionalCharge + partnerFeeAmount;
-    
+
     // Calculate commission based on subtotal
     const commission = NumberManager.roundout((subtotal * serviceCommissionPercentage) / 100);
-    
+
     // Calculate total
     const total = subtotal + commission;
-    
+
     return { subtotal, commission, total };
   };
 
   const handleGroupSizeChange = (size: number) => {
     if (!packageData || size < 0) return;
-    
+
     // Check if new size would exceed available seats
     const availableSeats = getAvailableSeats();
     if (size > availableSeats) {
       return; // Don't allow the update
     }
-    
+
     setSelectedGroupSize(size);
-    
+
     if (size === 0) {
       setRateGroupSelections([]);
       return;
     }
-    
+
     // Find the appropriate rate group for this size
     const applicableRateGroup = groupRateOptions.find(rateGroup => {
       const groupSize = rateGroup.size || 1;
       return groupSize === size;
     });
-    
+
     if (applicableRateGroup) {
       const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
       const pricing = calculateGroupRatePricing(applicableRateGroup, serviceCommissionPercentage);
-      
+
       setRateGroupSelections([{
         rateGroup: applicableRateGroup,
         quantity: 1, // Always 1 for group rates (represents one group)
@@ -361,32 +361,32 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const updateRateGroupQuantity = (index: number, newQuantity: number) => {
     // Skip for group rate packages
     if (packageData?.is_group_rate_enabled === 1) return;
-    
+
     if (newQuantity < 0 || !packageData) return;
-    
+
     // Get current total guests excluding this rate group
     const currentTotalExcludingThis = rateGroupSelections.reduce((total, selection, i) => {
       return i === index ? total : total + selection.quantity;
     }, 0);
-    
+
     // Check if adding this quantity would exceed available seats
     const availableSeats = getAvailableSeats();
     if (currentTotalExcludingThis + newQuantity > availableSeats) {
       return; // Don't allow the update
     }
-    
+
     const updatedSelections = [...rateGroupSelections];
     const rateGroup = updatedSelections[index].rateGroup;
     const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
-    
+
     const pricing = calculatePricing(rateGroup, newQuantity, serviceCommissionPercentage);
-    
+
     updatedSelections[index] = {
       rateGroup,
       quantity: newQuantity,
       ...pricing
     };
-    
+
     setRateGroupSelections(updatedSelections);
   };
 
@@ -409,17 +409,23 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const getTourCommission = () => {
-    const commission = rateGroupSelections.reduce((total, selection) => total + selection.commission, 0);
-    console.log('Tour commission:', commission);
+    if (!packageData) return 0;
+    const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
+    let commission = 0;    
+    if (appliedPromoCode?.id) {
+      commission = (getTourSubtotal() - getPromoDiscount()) * serviceCommissionPercentage / 100;
+    } else {
+      commission = rateGroupSelections.reduce((total, selection) => total + selection.commission, 0);
+    }
     return NumberManager.roundout(commission);
   };
 
   const getPromoDiscount = () => {
     if (!appliedPromoCode) return 0;
-    
+
     const tourSubtotal = getTourSubtotal();
     const discountValue = parseFloat(appliedPromoCode.discount_value);
-    
+
     if (appliedPromoCode.discount_value_type === 'Percent') {
       return (tourSubtotal * discountValue) / 100;
     } else {
@@ -430,20 +436,20 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
   const getAddOnSubtotal = () => {
     if (!customForm || !packageData) return 0;
-    
+
     const visibleFields = FormFieldManager.getVisibleFields(customForm.form_fields);
     const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
     const totalGuests = getTotalGuests();
-    
+
     return visibleFields.reduce((total, field) => {
       const value = addOnSelections[field.id];
       if (!value) return total;
-      
+
       // For radio fields, check if value should be priced (not "0")
       if (field.type === 'radio' && !FormFieldManager.shouldPriceRadioValue(value)) {
         return total;
       }
-      
+
       const pricing = FormFieldManager.calculateAddOnPricing(
         field,
         value,
@@ -451,27 +457,27 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         totalGuests,
         serviceCommissionPercentage
       );
-      
+
       return total + pricing.subtotal;
     }, 0);
   };
 
   const getAddOnCommission = () => {
     if (!customForm || !packageData) return 0;
-    
+
     const visibleFields = FormFieldManager.getVisibleFields(customForm.form_fields);
     const serviceCommissionPercentage = rateGroupCommission ?? parseFloat(packageData.service_commission_percentage);
     const totalGuests = getTotalGuests();
-    
+
     return visibleFields.reduce((total, field) => {
       const value = addOnSelections[field.id];
       if (!value) return total;
-      
+
       // For radio fields, check if value should be priced (not "0")
       if (field.type === 'radio' && !FormFieldManager.shouldPriceRadioValue(value)) {
         return total;
       }
-      
+
       const pricing = FormFieldManager.calculateAddOnPricing(
         field,
         value,
@@ -479,7 +485,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         totalGuests,
         serviceCommissionPercentage
       );
-      
+
       return NumberManager.roundout(total + pricing.commission);
     }, 0);
   };
@@ -488,7 +494,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     const tourSubtotal = getTourSubtotal();
     const promoDiscount = getPromoDiscount();
     const addOnSubtotal = getAddOnSubtotal();
-    
+
     return tourSubtotal - promoDiscount + addOnSubtotal;
   };
 
@@ -537,12 +543,12 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
   const getGroupSizeOptions = () => {
     const availableSeats = getAvailableSeats();
-    
+
     // Get unique sizes from group rate options, filtered by available seats
     const uniqueSizes = [...new Set(groupRateOptions.map(rg => rg.size || 1))]
       .filter(size => size <= availableSeats)
       .sort((a, b) => a - b);
-    
+
     return uniqueSizes.map(size => {
       const rateGroup = groupRateOptions.find(rg => (rg.size || 1) === size);
       return {
@@ -555,7 +561,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
   const generateCalendarDays = () => {
     if (!packageData) return [];
-    
+
     return TimezoneManager.generateCalendarDays(currentMonth, selectedDate, packageTimezone);
   };
 
@@ -571,7 +577,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
   const formatDate = (dateStr: string) => {
     if (!packageData) return dateStr;
-    
+
     return TimezoneManager.formatDateForDisplay(dateStr, packageTimezone);
   };
 
@@ -672,7 +678,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center gap-4 mb-4">
-            <Link 
+            <Link
               href="/"
               className="inline-flex items-center text-white hover:text-blue-200 transition-colors"
             >
@@ -682,14 +688,14 @@ export default function SchedulePage({ params }: SchedulePageProps) {
               Home
             </Link>
             <span className="text-white">/</span>
-            <Link 
+            <Link
               href="/packages"
               className="inline-flex items-center text-white hover:text-blue-200 transition-colors"
             >
               Packages
             </Link>
             <span className="text-white">/</span>
-            <Link 
+            <Link
               href={`/packages/${packageData.tenant_id}/${packageData.id}`}
               className="inline-flex items-center text-white hover:text-blue-200 transition-colors"
             >
@@ -698,7 +704,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
             <span className="text-white">/</span>
             <span className="text-blue-200">Schedule</span>
           </div>
-          
+
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-4xl font-bold text-white mb-4">Schedule Your Tour</h1>
@@ -740,7 +746,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
           {/* Calendar Section */}
           <div className="bg-white rounded-xl shadow-lg p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Select Date</h2>
-            
+
             {/* Calendar Header */}
             <div className="bg-gray-50 rounded-lg p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
@@ -752,11 +758,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                     <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 </button>
-                
+
                 <h3 className="text-xl font-semibold text-gray-900">
                   {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </h3>
-                
+
                 <button
                   onClick={() => navigateMonth('next')}
                   className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
@@ -766,7 +772,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                   </svg>
                 </button>
               </div>
-              
+
               {/* Days of week */}
               <div className="grid grid-cols-7 gap-2 mb-4">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
@@ -775,7 +781,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                   </div>
                 ))}
               </div>
-              
+
               {/* Calendar Days */}
               <div className="grid grid-cols-7 gap-2">
                 {calendarDays.map((day, index) => (
@@ -785,10 +791,10 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                     disabled={day.isPast || !day.isCurrentMonth}
                     className={`
                       p-3 text-sm rounded-lg transition-all duration-200 font-medium
-                      ${!day.isCurrentMonth 
-                        ? 'text-gray-300 cursor-not-allowed' 
-                        : day.isPast 
-                          ? 'text-gray-400 cursor-not-allowed bg-gray-100' 
+                      ${!day.isCurrentMonth
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : day.isPast
+                          ? 'text-gray-400 cursor-not-allowed bg-gray-100'
                           : day.isSelected
                             ? 'bg-blue-600 text-white font-bold shadow-lg'
                             : day.isToday
@@ -802,7 +808,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                 ))}
               </div>
             </div>
-            
+
             {selectedDate && (
               <div className="bg-blue-50 rounded-lg p-6">
                 <p className="text-sm text-blue-600 font-medium mb-1">Selected Date:</p>
@@ -829,7 +835,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                 </div>
               )}
             </div>
-            
+
             {slotsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -842,7 +848,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                 </svg>
                 <p className="text-lg font-medium">No time slots available</p>
                 <p className="text-sm">
-                  {TimezoneManager.isDateToday(selectedDate, packageTimezone) 
+                  {TimezoneManager.isDateToday(selectedDate, packageTimezone)
                     ? 'All slots for today have passed or are closed'
                     : 'Please select a different date'
                   }
@@ -851,9 +857,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {filteredTimeSlots.map((slot) => {
-                  const isSlotInPast = TimezoneManager.isDateToday(selectedDate, packageTimezone) && 
-                                      TimezoneManager.isTimeSlotInPast(slot.time, packageTimezone);
-                  
+                  const isSlotInPast = TimezoneManager.isDateToday(selectedDate, packageTimezone) &&
+                    TimezoneManager.isTimeSlotInPast(slot.time, packageTimezone);
+
                   return (
                     <button
                       key={slot.id}
@@ -923,7 +929,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                 )}
               </div>
             </div>
-            
+
             {rateGroupsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -961,7 +967,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                         ))}
                       </div>
                     </div>
-                    
+
                     {selectedGroupSize > 0 && rateGroupSelections.length > 0 && (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                         <div className="flex justify-between items-center">
@@ -1005,7 +1011,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                             )}
                           </p>
                         </div>
-                        
+
                         <div className="flex items-center gap-4">
                           <div className="flex items-center border border-gray-300 rounded-lg">
                             <button
@@ -1017,11 +1023,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                                 <path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                               </svg>
                             </button>
-                            
+
                             <div className="px-4 py-2 text-center min-w-[60px] border-l border-r border-gray-300">
                               <span className="font-semibold text-lg">{selection.quantity}</span>
                             </div>
-                            
+
                             <button
                               onClick={() => updateRateGroupQuantity(index, selection.quantity + 1)}
                               disabled={!canIncreaseQuantity(selection.quantity)}
@@ -1033,7 +1039,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                               </svg>
                             </button>
                           </div>
-                          
+
                           {selection.quantity > 0 && (
                             <div className="text-right">
                               <p className="text-lg font-bold text-green-600">
@@ -1046,14 +1052,14 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                           )}
                         </div>
                       </div>
-                      
+
                       {selection.rateGroup.description && (
                         <p className="text-sm text-gray-600 mt-2">{selection.rateGroup.description}</p>
                       )}
                     </div>
                   ))
                 )}
-                
+
                 {/* Seat Limit Warning */}
                 {getTotalGuests() >= getAvailableSeats() && getAvailableSeats() > 0 && (
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
@@ -1090,7 +1096,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         {visibleAddOnFields.length > 0 && getTotalGuests() > 0 && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Tour Add-ons</h3>
-            
+
             {customFormLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -1118,7 +1124,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
         {((selectedSlot && hasCustomRatesInSlots) || (!hasCustomRatesInSlots && filteredTimeSlots.length > 0)) && getTotalGuests() > 0 && (
           <div className="mt-12 bg-white rounded-xl shadow-lg p-8">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Booking Summary</h3>
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Tour Details */}
               <div>
@@ -1157,11 +1163,11 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                   )}
                 </div>
               </div>
-              
+
               {/* Pricing Breakdown */}
               <div>
                 <h4 className="font-semibold text-gray-700 mb-4">Pricing Breakdown</h4>
-                
+
                 {/* Tour Section */}
                 <div className="bg-blue-50 rounded-lg p-4 mb-4">
                   <h5 className="font-medium text-blue-900 mb-3">Tour Pricing</h5>
@@ -1195,9 +1201,9 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                       {appliedPromoCode && getPromoDiscount() > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-green-600">
-                            Promo Discount ({appliedPromoCode.discount_value_type === 'Percent' 
-                              ? `${appliedPromoCode.discount_value}%` 
-                            : `$${appliedPromoCode.discount_value}`}):
+                            Promo Discount ({appliedPromoCode.discount_value_type === 'Percent'
+                              ? `${appliedPromoCode.discount_value}%`
+                              : `$${appliedPromoCode.discount_value}`}):
                           </span>
                           <span className="text-green-600">-${getPromoDiscount().toFixed(2)}</span>
                         </div>
@@ -1219,12 +1225,12 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                         .filter(field => {
                           const value = addOnSelections[field.id];
                           if (!value || !FormFieldManager.hasPricing(field)) return false;
-                          
+
                           // For radio fields, check if value should be priced (not "0")
                           if (field.type === 'radio') {
                             return FormFieldManager.shouldPriceRadioValue(value);
                           }
-                          
+
                           return true;
                         })
                         .map((field) => {
@@ -1236,7 +1242,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                             getTotalGuests(),
                             rateGroupCommission ?? parseFloat(packageData.service_commission_percentage)
                           );
-                          
+
                           return (
                             <div key={field.id} className="flex justify-between text-sm">
                               <span className="text-purple-700">{field.name}</span>
@@ -1244,7 +1250,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                             </div>
                           );
                         })}
-                      
+
                       <div className="flex justify-between text-sm font-medium pt-2 border-t border-purple-200">
                         <span className="text-purple-800">Add-ons Subtotal:</span>
                         <span className="text-purple-900">${getAddOnSubtotal().toFixed(2)}</span>
@@ -1260,12 +1266,12 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                       <span className="text-gray-700">Total Subtotal:</span>
                       <span className="text-gray-900">${getTotalSubtotal().toFixed(2)}</span>
                     </div>
-                    
+
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Service Fees:</span>
                       <span className="text-gray-700">${getTotalFees().toFixed(2)}</span>
                     </div>
-                    
+
                     <div className="pt-2 border-t border-gray-300">
                       <div className="flex justify-between text-lg font-bold">
                         <span className="text-gray-900">Total Amount:</span>
@@ -1274,7 +1280,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="pt-4">
                   <BookingActions
                     cartItem={createCartItem()}
