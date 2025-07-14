@@ -427,10 +427,10 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     const discountValue = parseFloat(appliedPromoCode.discount_value);
 
     if (appliedPromoCode.discount_value_type === 'Percent') {
-      return (tourSubtotal * discountValue) / 100;
+      return NumberManager.roundout((tourSubtotal * discountValue) / 100);
     } else {
       // Fixed Money - don't exceed tour subtotal
-      return Math.min(discountValue, tourSubtotal);
+      return NumberManager.roundout(Math.min(discountValue, tourSubtotal));
     }
   };
 
@@ -495,7 +495,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     const promoDiscount = getPromoDiscount();
     const addOnSubtotal = getAddOnSubtotal();
 
-    return tourSubtotal - promoDiscount + addOnSubtotal;
+    return NumberManager.roundout(tourSubtotal - promoDiscount + addOnSubtotal);
   };
 
   const getTotalFees = () => {
