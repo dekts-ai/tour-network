@@ -9,6 +9,7 @@ interface BookingData {
   customerInfo: any;
   totalAmount: number;
   paymentIntentId: string;
+  stripeCustomerId: string;
   bookingId: string;
   bookingDate: string;
   bookings?: any[];

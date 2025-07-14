@@ -17,6 +17,7 @@ export default function CheckoutPage() {
   const { cartItems, getCartTotal, customerInfo, clearCart } = useCart();
   
   const [clientSecret, setClientSecret] = useState<string>('');
+  const [stripeCustomerId, setStripeCustomerId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -56,6 +57,7 @@ export default function CheckoutPage() {
 
       if (response.data.code === 200 && response.data.data.clientSecret) {
         setClientSecret(response.data.data.clientSecret);
+        setStripeCustomerId(response.data.data.stripeCustomerId);
       } else {
         throw new Error('Failed to create payment intent');
       }
@@ -77,6 +79,7 @@ export default function CheckoutPage() {
       // Prepare booking payload
       const bookingPayload = {
         paymentIntentId: paymentIntent.id,
+        stripeCustomerId: stripeCustomerId,
         customerInfo: customerInfo,
         cartItems: cartItems.map(item => ({
           packageId: item.packageId,

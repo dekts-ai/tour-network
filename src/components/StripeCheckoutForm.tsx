@@ -61,14 +61,17 @@ const StripeCheckoutForm: React.FC<StripeCheckoutFormProps> = ({
         <div className="border border-gray-300 rounded-lg p-4">
           <PaymentElement 
             options={{
-              layout: 'tabs'
+              layout: 'auto',
+              business: { name: 'Native American Tours' },
+              paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
+              defaultValues: { billingDetails: { address: { country: 'US' } } }
             }}
           />
         </div>
       </div>
 
       {/* Address Element */}
-      <div>
+      {/* <div>
         <label className="block text-sm font-medium text-gray-700 mb-3">
           Billing Address
         </label>
@@ -80,7 +83,7 @@ const StripeCheckoutForm: React.FC<StripeCheckoutFormProps> = ({
             }}
           />
         </div>
-      </div>
+      </div> */}
 
       {/* Error Message */}
       {errorMessage && (

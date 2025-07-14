@@ -405,7 +405,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   };
 
   const getTourSubtotal = () => {
-    return rateGroupSelections.reduce((total, selection) => total + selection.subtotal, 0);
+    return NumberManager.roundout(rateGroupSelections.reduce((total, selection) => total + selection.subtotal, 0));
   };
 
   const getTourCommission = () => {

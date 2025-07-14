@@ -81,7 +81,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const getCartTotal = () => {
     const total = cartItems.reduce((total, item) => total + item.pricing.totalAmount, 0);
-    console.log('Cart total:', NumberManager.roundout(total));
     return NumberManager.roundout(total);
   };
 

@@ -80,30 +80,41 @@ export class FormFieldManager {
 
     const price = parseFloat(field.priceInfo.price);
     let subtotal = 0;
+    let commission = 0;    
 
     // Calculate subtotal based on unit type
     switch (field.priceInfo.unit) {
       case 'setprice':
         // Fixed price regardless of guests
         if (field.type === 'checkbox' && value === true) {
+          commission = NumberManager.roundout((price * serviceCommissionPercentage) / 100);
           subtotal = price;
         } else if (field.type === 'radio' && value && this.shouldPriceRadioValue(value)) {
           // Only apply pricing if radio value is not "0"
+          commission = NumberManager.roundout((price * serviceCommissionPercentage) / 100);
           subtotal = price;
         } else if (field.type === 'number' && value > 0) {
+          commission = NumberManager.roundout(price * serviceCommissionPercentage) / 100;
           subtotal = price * value;
+          commission = commission * value;
         }
         break;
 
       case 'priceperpax':
         // Price per person
         if (field.type === 'checkbox' && value === true) {
+          commission = NumberManager.roundout((price * serviceCommissionPercentage) / 100);
           subtotal = price * totalGuests;
+          commission = commission * totalGuests;
         } else if (field.type === 'radio' && value && this.shouldPriceRadioValue(value)) {
           // Only apply pricing if radio value is not "0"
+          commission = NumberManager.roundout((price * serviceCommissionPercentage) / 100);
           subtotal = price * totalGuests;
+          commission = commission * totalGuests;
         } else if (field.type === 'number' && value > 0) {
+          commission = NumberManager.roundout(price * serviceCommissionPercentage) / 100;
           subtotal = price * value;
+          commission = commission * value;
         }
         break;
 
@@ -114,8 +125,6 @@ export class FormFieldManager {
         break;
     }
 
-    // Calculate commission based on subtotal
-    const commission = NumberManager.roundout((subtotal * serviceCommissionPercentage) / 100);
     const total = subtotal + commission;
 
     return { subtotal, commission, total };
