@@ -45,7 +45,7 @@ export default function CartPage() {
             <h1 className="text-3xl font-bold text-gray-900">Shopping Cart</h1>
             <p className="text-gray-600 mt-2">{cartItems.length} {cartItems.length === 1 ? 'item' : 'items'} in your cart</p>
           </div>
-          
+
           <div className="flex items-center gap-4">
             <button
               onClick={clearCart}
@@ -92,12 +92,12 @@ export default function CartPage() {
                         {item.totalGuests} {item.totalGuests === 1 ? 'guest' : 'guests'}
                       </span>
                     </div>
-                    
+
                     <div className="text-sm text-gray-600">
                       <p>Operator: {item.tenantId.toUpperCase()}</p>
                     </div>
                   </div>
-                  
+
                   <button
                     onClick={() => removeFromCart(item.id)}
                     className="text-red-600 hover:text-red-800 p-2 transition-colors"
@@ -116,26 +116,26 @@ export default function CartPage() {
                       <span className="text-gray-600">Tour Subtotal:</span>
                       <span className="font-medium">${(item.pricing.tourSubtotal - item.pricing.promoDiscount).toFixed(2)}</span>
                     </div>
-                    
+
                     {item.pricing.promoDiscount > 0 && (
                       <div className="flex justify-between text-green-600">
                         <span>Promo Discount:</span>
                         <span>-${item.pricing.promoDiscount.toFixed(2)}</span>
                       </div>
                     )}
-                    
+
                     {item.pricing.addOnSubtotal > 0 && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Add-ons:</span>
                         <span className="font-medium">${item.pricing.addOnSubtotal.toFixed(2)}</span>
                       </div>
                     )}
-                    
+
                     <div className="flex justify-between">
                       <span className="text-gray-600">Service Fees:</span>
                       <span className="font-medium">${item.pricing.totalFees.toFixed(2)}</span>
                     </div>
-                    
+
                     <div className="pt-2 border-t border-gray-300">
                       <div className="flex justify-between text-lg font-bold">
                         <span>Total:</span>
@@ -144,6 +144,34 @@ export default function CartPage() {
                     </div>
                   </div>
                 </div>
+                 {/* Add-ons */}
+                  {item.addOnFieldDetails && item.addOnFieldDetails.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Add-ons:</h4>
+                      <ul className="space-y-2 text-sm text-gray-600">
+                        {item.addOnFieldDetails.map((detail) => (
+                          <div key={detail.id} className="flex justify-between items-start text-sm">
+                            <div className="flex-1">
+                              <span className="font-medium text-gray-700">{detail.name}:</span>
+                              <span className="ml-2 text-gray-600">
+                                {typeof detail.value === 'boolean' 
+                                  ? (detail.value ? 'Yes' : 'No') 
+                                  : detail.value}
+                              </span>
+                              {detail.description && (
+                                <p className="text-xs text-gray-500 mt-1 ml-4">{detail.description}</p>
+                              )}
+                            </div>
+                            {detail.priceInfo.enabled && (
+                              <span className="text-green-600 font-medium ml-2">
+                                ${(detail.priceInfo.price + detail.priceInfo.fee).toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
               </div>
             ))}
           </div>
@@ -152,18 +180,18 @@ export default function CartPage() {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-lg p-6 sticky top-8">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Order Summary</h3>
-              
+
               <div className="space-y-4 mb-6">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Items ({cartItems.length}):</span>
                   <span className="font-medium">${cartItems.reduce((sum, item) => sum + item.pricing.totalSubtotal, 0).toFixed(2)}</span>
                 </div>
-                
+
                 <div className="flex justify-between">
                   <span className="text-gray-600">Service Fees:</span>
                   <span className="font-medium">${cartItems.reduce((sum, item) => sum + item.pricing.totalFees, 0).toFixed(2)}</span>
                 </div>
-                
+
                 <div className="pt-4 border-t border-gray-300">
                   <div className="flex justify-between text-xl font-bold">
                     <span>Total:</span>
@@ -188,7 +216,7 @@ export default function CartPage() {
               >
                 Proceed to Checkout
               </Link>
-              
+
               <p className="text-sm text-gray-500 text-center mt-4">
                 Secure checkout • SSL encrypted • Money-back guarantee
               </p>

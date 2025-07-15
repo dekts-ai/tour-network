@@ -123,6 +123,35 @@ export default function BookingConfirmationPage() {
                     </div>
                   </div>
 
+                  {/* Add-ons Details */}
+                  {item.addOnFieldDetails && item.addOnFieldDetails.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <h5 className="font-medium text-gray-900 mb-3">Add-ons Selected:</h5>
+                      <div className="space-y-2">
+                        {item.addOnFieldDetails.map((detail: any) => (
+                          <div key={detail.id} className="flex justify-between items-start text-sm">
+                            <div className="flex-1">
+                              <span className="font-medium text-gray-700">{detail.name}:</span>
+                              <span className="ml-2 text-gray-600">
+                                {typeof detail.value === 'boolean' 
+                                  ? (detail.value ? 'Yes' : 'No') 
+                                  : detail.value}
+                              </span>
+                              {detail.description && (
+                                <p className="text-xs text-gray-500 mt-1 ml-4">{detail.description}</p>
+                              )}
+                            </div>
+                            {detail.priceInfo.enabled && (
+                              <span className="text-green-600 font-medium ml-2">
+                                ${(detail.priceInfo.price + detail.priceInfo.fee).toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Rate Group Details */}
                   {item.rateGroupSelections.filter((rg: any) => rg.quantity > 0).length > 0 && (
                     <div className="bg-gray-50 rounded-lg p-4 mb-4">

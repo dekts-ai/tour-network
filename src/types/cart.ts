@@ -1,3 +1,34 @@
+export interface AddOnFieldDetails {
+  id: string;
+  name: string;
+  type: string;
+  order: string;
+  default: string;
+  required: string;
+  priceInfo: {
+    type: string;
+    unit: string;
+    price: number;
+    enabled: boolean;
+    inventory: string;
+    fee: number;
+  };
+  visibility: string;
+  description: string;
+  value: any;
+  error: boolean;
+  form_id: number;
+  attrs?: {
+    options?: Array<{
+      id: string;
+      name: string;
+      value: string;
+    }>;
+    min?: string;
+    max?: string;
+  };
+}
+
 export interface CartItem {
   id: string; // Unique cart item ID
   packageId: number;
@@ -7,6 +38,7 @@ export interface CartItem {
   selectedSlot: TimeSlot | null;
   rateGroupSelections: RateGroupSelection[];
   addOnSelections: { [key: string]: any };
+  addOnFieldDetails: AddOnFieldDetails[]; // Detailed form field information
   appliedPromoCode: PromoCode | null;
   pricing: {
     tourSubtotal: number;

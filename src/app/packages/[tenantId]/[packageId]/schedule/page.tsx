@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from 'react';
+import React, { use, useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Package, PackageDetailsResponse, TimeSlot, TimeSlotsResponse, RateGroup, RateGroupsResponse, RateGroupSelection, CustomFormResponse, CustomForm, FormField, AddOnSelection, PromoCode, PromoCodeResponse, PromoCodeRequest } from '@/types/package';
@@ -46,6 +46,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [hasCustomRatesInSlots, setHasCustomRatesInSlots] = useState(false);
   const [rateGroupCommission, setRateGroupCommission] = useState<number | null>(null);
+  const [addOnFieldDetails, setAddOnFieldDetails] = useState<any[]>([]);
 
   // Group rate specific state
   const [selectedGroupSize, setSelectedGroupSize] = useState<number>(0);
@@ -390,12 +391,25 @@ export default function SchedulePage({ params }: SchedulePageProps) {
     setRateGroupSelections(updatedSelections);
   };
 
-  const updateAddOnSelection = (fieldId: string, value: any) => {
+  const handleAddOnChange = (fieldId: string, value: any) => {
     setAddOnSelections(prev => ({
       ...prev,
       [fieldId]: value
     }));
   };
+
+  const handleFieldDetailsChange = React.useCallback((fieldDetails: any) => {
+    setAddOnFieldDetails(prev => {
+      const existing = prev.findIndex(detail => detail.id === fieldDetails.id);
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = fieldDetails;
+        return updated;
+      } else {
+        return [...prev, fieldDetails];
+      }
+    });
+  }, []);
 
   const getTotalGuests = () => {
     if (packageData?.is_group_rate_enabled === 1) {
@@ -625,6 +639,28 @@ export default function SchedulePage({ params }: SchedulePageProps) {
 
   // Create cart item for booking actions
   const createCartItem = (): CartItem => {
+    // Filter only selected add-ons based on their value and type
+    const selectedAddOns = addOnFieldDetails.filter(detail => {
+      // Always include if there's a value, regardless of pricing
+      if (!detail.value && detail.value !== 0 && detail.value !== false) return false;
+      
+      switch (detail.type) {
+        case 'checkbox':
+          return detail.value === true;
+        case 'radio':
+          return detail.value !== '0' && detail.value !== '';
+        case 'select':
+          return detail.value !== '';
+        case 'number':
+          return detail.value > 0;
+        case 'text':
+        case 'textarea':
+          return detail.value && detail.value.trim() !== '';
+        default:
+          return !!detail.value;
+      }
+    });
+
     return {
       id: `${resolvedParams.tenantId}-${resolvedParams.packageId}-${Date.now()}`,
       packageId: parseInt(resolvedParams.packageId),
@@ -634,6 +670,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
       selectedSlot,
       rateGroupSelections: rateGroupSelections.filter(s => s.quantity > 0),
       addOnSelections,
+      addOnFieldDetails: selectedAddOns,
       appliedPromoCode,
       pricing: {
         tourSubtotal: getTourSubtotal(),
@@ -1035,7 +1072,7 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                               title={!canIncreaseQuantity(selection.quantity) ? 'No more seats available' : 'Add guest'}
                             >
                               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 010-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                               </svg>
                             </button>
                           </div>
@@ -1109,7 +1146,8 @@ export default function SchedulePage({ params }: SchedulePageProps) {
                     <AddOnField
                       field={field}
                       value={addOnSelections[field.id]}
-                      onChange={(value) => updateAddOnSelection(field.id, value)}
+                      onChange={(value) => handleAddOnChange(field.id, value)}
+                      onFieldDetailsChange={handleFieldDetailsChange}
                       totalGuests={getTotalGuests()}
                       serviceCommissionPercentage={rateGroupCommission ?? parseFloat(packageData.service_commission_percentage)}
                     />

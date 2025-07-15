@@ -89,6 +89,7 @@ export default function CheckoutPage() {
           selectedSlot: item.selectedSlot,
           rateGroupSelections: item.rateGroupSelections,
           addOnSelections: item.addOnSelections,
+          addOnFieldDetails: item.addOnFieldDetails,
           appliedPromoCode: item.appliedPromoCode,
           pricing: {
             ...item.pricing
