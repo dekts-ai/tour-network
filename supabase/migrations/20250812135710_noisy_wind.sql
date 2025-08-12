@@ -44,6 +44,7 @@ CREATE TABLE `addon_field_options` (
   `option_order` int(11) DEFAULT 0,
   `is_default` tinyint(1) DEFAULT 0,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_field_id` (`field_id`),
   KEY `idx_option_order` (`option_order`),
@@ -78,6 +79,7 @@ CREATE TABLE `booking_addons` (
   `selected_value` text, -- JSON or text based on field type
   `pricing_details` json, -- Store calculated pricing breakdown
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_booking_id` (`booking_id`),
   KEY `idx_cart_item` (`cart_item_id`),

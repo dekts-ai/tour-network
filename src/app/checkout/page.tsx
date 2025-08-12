@@ -120,7 +120,14 @@ export default function CheckoutPage() {
         clearCart();
 
         // Redirect to thank you page
-        router.push('/booking-confirmation');
+        router.replace('/booking-confirmation');
+
+        // Fallback redirect after a short delay
+        setTimeout(() => {
+          if (window.location.pathname !== '/booking-confirmation') {
+            window.location.href = '/booking-confirmation';
+          }
+        }, 1000);
       } else {
         throw new Error(bookingResponse.data.message || 'Failed to create booking');
       }

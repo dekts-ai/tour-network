@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { TimezoneManager } from '@/utils/timezoneUtils';
+import { useRouter } from 'next/navigation';
 
 interface BookingData {
   cartItems: any[];
@@ -17,19 +18,26 @@ interface BookingData {
 }
 
 export default function BookingConfirmationPage() {
+  const router = useRouter();
   const [bookingData, setBookingData] = useState<BookingData | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedBooking = localStorage.getItem('completed_booking');
+      console.log('Saved booking data:', savedBooking);
       if (savedBooking) {
         try {
-          setBookingData(JSON.parse(savedBooking));
+          const parsedData = JSON.parse(savedBooking);
+          console.log('Parsed booking data:', parsedData);
+          setBookingData(parsedData);
           // Clear the booking data after loading
           localStorage.removeItem('completed_booking');
         } catch (error) {
           console.error('Error loading booking data:', error);
         }
+      } else {
+        router.push('/packages');
+        console.log('No booking data found in localStorage');
       }
     }
   }, []);
